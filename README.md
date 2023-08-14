@@ -50,7 +50,7 @@ Please note that launching deauthentication attacks can be pretty noisy in certa
 ## Acknowledgements and references <a name="acknowledgements_and_references" />
 
 * [rsrdesarrollo](https://github.com/rsrdesarrollo) for helping me understand the Frame Control field and some Scapy basics. He also runs a Wi-Fi hacking suite called [pinecone](https://github.com/pinecone-wifi/pinecone) that you should definitely check out if interested in Wi-Fi hacking.
-* [Aircrack-ng's deauthentication documentation](https://www.aircrack-ng.org/doku.php?id=deauthentication).
-* [Scapy's usage documentation](https://scapy.readthedocs.io/en/latest/usage.html).
-* [mrn-cciew's blogpost "CWAP – MAC Header : Addresses"](https://mrncciew.com/2014/09/28/cwap-mac-headeraddresses/).
-* [mrn-cciew's blogpost "802.11 Mgmt : Deauth & Disassociation Frames"](https://mrncciew.com/2014/10/11/802-11-mgmt-deauth-disassociation-frames/).
+* [Scapy's usage documentation](https://scapy.readthedocs.io/en/latest/usage.html)
+* [Aircrack-ng's deauthentication documentation](https://www.aircrack-ng.org/doku.php?id=deauthentication)
+* [mrn-cciew's blogpost "CWAP – MAC Header : Addresses"](https://mrncciew.com/2014/09/28/cwap-mac-headeraddresses/)
+* [mrn-cciew's blogpost "802.11 Mgmt : Deauth & Disassociation Frames"](https://mrncciew.com/2014/10/11/802-11-mgmt-deauth-disassociation-frames/)
