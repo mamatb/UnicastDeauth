@@ -39,7 +39,7 @@ def panic(msg_exception):
 def print_info(message):
     '''additional info printing'''
     
-    print(f'[!] Info: {message}', file = sys.stdout)
+    print(f'[!] Info: {message}', file = sys.stderr)
 
 def is_unicast(bssid):
     '''bssid type checking'''
