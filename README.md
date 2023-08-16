@@ -27,10 +27,10 @@ pip install -r './UnicastDeauth/requirements.txt'
 As with all tools using Wi-Fi cards in monitor mode, first kill all processes that could interfere and then configure the Wi-Fi interface (as root):
 ```bash
 airmon-ng check kill
-ip link set dev <wifi_interface> down
-iw dev <wifi_interface> set monitor control
-iw dev <wifi_interface> set channel <wifi_channel>
-ip link set dev <wifi_interface> up
+ip link set dev "${WIFI_INTERFACE}" down
+iw dev "${WIFI_INTERFACE}" set monitor control
+iw dev "${WIFI_INTERFACE}" set channel "${WIFI_CHANNEL}"
+ip link set dev "${WIFI_INTERFACE}" up
 
 ```
 After that just follow the help section of the script:
