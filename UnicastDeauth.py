@@ -7,9 +7,9 @@
 
 # TODO
 #
-#   add ap whitelist argument
-#   add module docstring
-#   add support for hidden networks
+# add ap whitelist argument
+# add module docstring
+# add support for hidden networks
 
 import sys
 import argparse
