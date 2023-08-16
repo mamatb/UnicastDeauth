@@ -10,6 +10,7 @@
 # add ap whitelist argument
 # add module docstring
 # add support for hidden networks
+# check for protected management frames
 
 import sys
 import argparse
