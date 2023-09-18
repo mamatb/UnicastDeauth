@@ -31,7 +31,6 @@ ip link set dev "${WIFI_INTERFACE}" down
 iw dev "${WIFI_INTERFACE}" set monitor control
 iw dev "${WIFI_INTERFACE}" set channel "${WIFI_CHANNEL}"
 ip link set dev "${WIFI_INTERFACE}" up
-
 ```
 After that just follow the help section of the script:
 ```
