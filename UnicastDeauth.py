@@ -141,7 +141,8 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dic
             bssid_src, bssid_dst, bssid_network = get_src_dst_network(frame)
             if bssid_src and bssid_dst and bssid_network:
                 
-                if frame.haslayer(dot11.Dot11Beacon): # wlan type mgt subtype beacon
+                # wlan type mgt subtype beacon or wlan type mgt subtype probe-resp
+                if frame.haslayer(dot11.Dot11Beacon) or frame.haslayer(dot11.Dot11ProbeResp):
                     if (bssid_src not in bssids_whitelist) and (not bssids_aps_dict.get(bssid_src)):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
@@ -151,7 +152,8 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dic
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
-                elif frame.haslayer(dot11.Dot11ProbeReq): # wlan type mgt subtype probe-req
+                # wlan type mgt subtype probe-req
+                elif frame.haslayer(dot11.Dot11ProbeReq):
                     if (bssid_dst not in bssids_whitelist) and is_unicast(bssid_dst) and (not bssids_aps_dict.get(bssid_dst)):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
@@ -161,17 +163,8 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dic
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
-                elif frame.haslayer(dot11.Dot11ProbeResp): # wlan type mgt subtype probe-resp
-                    if (bssid_src not in bssids_whitelist) and (not bssids_aps_dict.get(bssid_src)):
-                        dot11_element = frame.getlayer(dot11.Dot11Elt)
-                        while dot11_element:
-                            if dot11_element.ID == 0:
-                                if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
-                                break
-                            dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
-                
-                else: # wlan type ctl or wlan type data: from ap to sta, from sta to ap
+                # wlan type ctl or wlan type data: from ap to sta, from sta to ap
+                else:
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
                         unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
