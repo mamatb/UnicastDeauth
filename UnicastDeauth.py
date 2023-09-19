@@ -7,7 +7,6 @@
 
 # TODO
 #
-# add bssids whitelisting (fake aps)
 # offer targeting bssids instead of an essid
 # add module docstring
 # check for protected management frames
@@ -33,6 +32,17 @@ class MsgException(Exception):
     
     def __str__(self):
         return f'[!] Error! {self.message}:\n    {self.exception}'
+
+def bssids_whitelist_type(bssids_whitelist_string):
+    '''comma-separated bssids whitelist parsing'''
+    
+    try:
+        bssids_whitelist_set = set()
+        for bssid in bssids_whitelist_string.split(','):
+            bssids_whitelist_set.add(bssid.strip().lower())
+    except Exception as e:
+        raise MsgException(e, 'Comma-separated BSSIDs whitelist could not be processed')
+    return bssids_whitelist_set
 
 def panic(msg_exception):
     '''exception handling'''
@@ -123,7 +133,7 @@ def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network):
     except Exception as e:
         raise MsgException(e, 'Deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -132,7 +142,7 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
             if bssid_src and bssid_dst and bssid_network:
                 
                 if frame.haslayer(dot11.Dot11Beacon): # wlan type mgt subtype beacon
-                    if not bssids_aps_dict.get(bssid_src):
+                    if (bssid_src not in bssids_whitelist) and (not bssids_aps_dict.get(bssid_src)):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
@@ -142,7 +152,7 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
                 elif frame.haslayer(dot11.Dot11ProbeReq): # wlan type mgt subtype probe-req
-                    if is_unicast(bssid_dst) and (not bssids_aps_dict.get(bssid_dst)):
+                    if (bssid_dst not in bssids_whitelist) and is_unicast(bssid_dst) and (not bssids_aps_dict.get(bssid_dst)):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
@@ -152,7 +162,7 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
                 elif frame.haslayer(dot11.Dot11ProbeResp): # wlan type mgt subtype probe-resp
-                    if not bssids_aps_dict.get(bssid_src):
+                    if (bssid_src not in bssids_whitelist) and (not bssids_aps_dict.get(bssid_src)):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
@@ -190,6 +200,14 @@ def main():
             help = 'Wi-Fi ESSID',
             required = True,
         )
+        parser.add_argument(
+            '-wl',
+            dest = 'bssids_whitelist',
+            help = 'Comma-separated BSSIDs whitelist',
+            required = False,
+            type = bssids_whitelist_type,
+            default = [],
+        )
         args = parser.parse_args()
         bssids_aps_dict = {} # {ap bssid: network bssid}
         bssids_stas_dict = {} # {sta bssid: ap bssid}
@@ -201,7 +219,7 @@ def main():
                 BPF_DOT11_PROBE_RESP + ' or ' +
                 BPF_DOT11_CONTROL + ' or ' +
                 BPF_DOT11_DATA,
-            prn = sniffer_wrapper(args.wifi_interface, args.wifi_essid, bssids_aps_dict, bssids_stas_dict),
+            prn = sniffer_wrapper(args.wifi_interface, args.wifi_essid, args.bssids_whitelist, bssids_aps_dict, bssids_stas_dict),
         )
     except MsgException as msg_exception:
         panic(msg_exception)
