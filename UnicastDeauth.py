@@ -7,7 +7,8 @@
 
 # TODO
 #
-# add ap whitelist argument
+# add bssids whitelisting (fake aps)
+# offer targeting bssids instead of an essid
 # add module docstring
 # check for protected management frames
 
