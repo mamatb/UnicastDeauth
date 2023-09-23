@@ -45,7 +45,7 @@ options:
 
 ## Disclaimer <a name="disclaimer" />
 
-Please note that launching deauthentication attacks can be pretty noisy in certain environments. So hack responsibly or something like that.
+Please note that launching deauthentication attacks can be pretty noisy in certain environments. Also remember that they won't work if [Protected Management Frames](https://www.wi-fi.org/beacon/philipp-ebbecke/protected-management-frames-enhance-wi-fi-network-security) are in use.
 
 ## Acknowledgements and references <a name="acknowledgements_and_references" />
 
