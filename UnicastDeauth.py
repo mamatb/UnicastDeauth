@@ -23,7 +23,6 @@ BPF_DOT11_PROBE_RESP = 'wlan type mgt subtype probe-resp'
 BPF_DOT11_CONTROL =  'wlan type ctl'
 BPF_DOT11_DATA = 'wlan type data'
 DEAUTH_COUNT = 64
-DEAUTH_INTER = 1./DEAUTH_COUNT
 
 class MsgException(Exception):
     def __init__(self, exception, message = 'Unknown error', *args, **kwargs):
