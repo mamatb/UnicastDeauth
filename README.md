@@ -34,14 +34,14 @@ ip link set dev "${WIFI_INTERFACE}" up
 ```
 After that just follow the help section of the script:
 ```
-usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e WIFI_ESSID [-n DEAUTH_WAVES] [-wl BSSIDS_WHITELIST]
+usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e WIFI_ESSID [-wl BSSIDS_WHITELIST] [-n DEAUTH_WAVES]
 
 options:
   -h, --help            show this help message and exit
   -i WIFI_INTERFACE     Wi-Fi interface
   -e WIFI_ESSID         Wi-Fi ESSID
-  -n DEAUTH_WAVES       Number of deauthentication waves
   -wl BSSIDS_WHITELIST  Comma-separated BSSIDs whitelist
+  -n DEAUTH_WAVES       Number of deauthentication waves
 ```
 
 ## Disclaimer <a name="disclaimer" />
