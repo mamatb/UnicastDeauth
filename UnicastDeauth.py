@@ -12,10 +12,10 @@
 # check for protected management frames
 
 import sys
-import argparse
 from scapy.layers import dot11
 from scapy.config import conf as scapy_conf
 from scapy.sendrecv import sniff as scapy_sniff
+from argparse import ArgumentParser as argparse_parser
 
 BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
 BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
@@ -179,7 +179,7 @@ def main():
     '''main'''
     
     try:
-        parser = argparse.ArgumentParser()
+        parser = argparse_parser()
         parser.add_argument(
             '-i',
             dest = 'wifi_interface',
