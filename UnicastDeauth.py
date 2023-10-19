@@ -12,6 +12,7 @@
 # check for protected management frames
 
 import sys
+from re import compile as re_compile
 from scapy.layers import dot11
 from scapy.config import conf as scapy_conf
 from scapy.sendrecv import sniff as scapy_sniff
@@ -38,12 +39,15 @@ def bssids_whitelist_type(bssids_whitelist_string):
     '''comma-separated bssids whitelist parsing'''
     
     try:
-        bssids_whitelist_set = set()
+        bssids_whitelist = set()
+        bssids_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
         for bssid in bssids_whitelist_string.split(','):
-            bssids_whitelist_set.add(bssid.strip().lower())
+            bssid = bssid.strip().lower()
+            if bssids_regex.match(bssid):
+                bssids_whitelist.add(bssid)
     except Exception as e:
         raise MsgException(e, 'Comma-separated BSSIDs whitelist could not be processed')
-    return bssids_whitelist_set
+    return bssids_whitelist
 
 def panic(msg_exception):
     '''exception handling'''
