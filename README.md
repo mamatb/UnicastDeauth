@@ -36,6 +36,8 @@ After that just follow the help section of the script:
 ```
 usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e WIFI_ESSID [-b] [-n DEAUTH_WAVES] [-wl BSSIDS_WHITELIST]
 
+UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks
+
 options:
   -h, --help            show this help message and exit
   -i WIFI_INTERFACE     Wi-Fi interface
