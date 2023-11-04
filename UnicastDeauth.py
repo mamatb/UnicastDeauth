@@ -220,20 +220,20 @@ def main():
         parser.add_argument(
             '-e',
             dest = 'wifi_essid',
-            help = 'Wi-Fi ESSID',
+            help = 'target Wi-Fi ESSID',
             required = True,
         )
         parser.add_argument(
             '-b',
             dest = 'broadcast_enabled',
-            help = 'Broadcast deauthentication flag',
+            help = 'broadcast deauthentication flag',
             required = False,
             action = 'store_true',
         )
         parser.add_argument(
             '-n',
             dest = 'deauth_waves',
-            help = 'Number of deauthentication waves',
+            help = 'number of deauthentication waves',
             required = False,
             type = int,
             default = 1,
@@ -241,7 +241,7 @@ def main():
         parser.add_argument(
             '-wl',
             dest = 'bssids_whitelist',
-            help = 'Comma-separated BSSIDs whitelist',
+            help = 'comma-separated BSSIDs whitelist',
             required = False,
             type = bssids_whitelist_type,
             default = [],
