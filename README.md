@@ -39,10 +39,14 @@ usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e WIFI_ESSID [-b] [-n DEAUTH_WAV
 options:
   -h, --help            show this help message and exit
   -i WIFI_INTERFACE     Wi-Fi interface
-  -e WIFI_ESSID         Wi-Fi ESSID
-  -b                    Broadcast deauthentication flag
-  -n DEAUTH_WAVES       Number of deauthentication waves
-  -wl BSSIDS_WHITELIST  Comma-separated BSSIDs whitelist
+  -e WIFI_ESSID         target Wi-Fi ESSID
+  -b                    broadcast deauthentication flag
+  -n DEAUTH_WAVES       number of deauthentication waves
+  -wl BSSIDS_WHITELIST  comma-separated BSSIDs whitelist
+
+examples:
+  UnicastDeauth.py -i wlan0 -e target -b -n 8
+  UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55
 ```
 
 ## Disclaimer <a name="disclaimer" />
