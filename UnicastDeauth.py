@@ -11,7 +11,7 @@
 # add module docstring
 # check for protected management frames
 
-from argparse import ArgumentParser as argparse_parser
+import argparse
 from re import compile as re_compile
 from scapy.config import conf as scapy_conf
 from scapy.layers import dot11
@@ -203,7 +203,14 @@ def main():
     '''main'''
     
     try:
-        parser = argparse_parser()
+        parser = argparse.ArgumentParser(
+            description = 'UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks',
+            formatter_class = argparse.RawTextHelpFormatter,
+            epilog =
+                'examples:'
+                '\n  UnicastDeauth.py -i wlan0 -e target -b -n 8'
+                '\n  UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55',
+        )
         parser.add_argument(
             '-i',
             dest = 'wifi_interface',
