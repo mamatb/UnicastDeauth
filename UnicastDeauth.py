@@ -11,12 +11,12 @@
 # add module docstring
 # check for protected management frames
 
-import sys
-from re import compile as re_compile
-from scapy.layers import dot11
-from scapy.config import conf as scapy_conf
-from scapy.sendrecv import sniff as scapy_sniff
 from argparse import ArgumentParser as argparse_parser
+from re import compile as re_compile
+from scapy.config import conf as scapy_conf
+from scapy.layers import dot11
+from scapy.sendrecv import sniff as scapy_sniff
+import sys
 
 BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
 BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
