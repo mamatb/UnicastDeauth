@@ -18,11 +18,6 @@ from scapy.layers import dot11
 from scapy.sendrecv import sniff as scapy_sniff
 import sys
 
-BPF_DOT11_BEACON = 'wlan type mgt subtype beacon'
-BPF_DOT11_PROBE_REQ = 'wlan type mgt subtype probe-req'
-BPF_DOT11_PROBE_RESP = 'wlan type mgt subtype probe-resp'
-BPF_DOT11_CONTROL =  'wlan type ctl'
-BPF_DOT11_DATA = 'wlan type data'
 BROADCAST = 'ff:ff:ff:ff:ff:ff'
 DEAUTH_COUNT = 64
 
@@ -203,13 +198,15 @@ def main():
     '''main'''
     
     try:
+        examples = [
+            'UnicastDeauth.py -i wlan0 -e target -b',
+            'UnicastDeauth.py -i wlan0 -e target -n 8',
+            'UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55',
+        ]
         parser = argparse.ArgumentParser(
             description = 'UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks',
             formatter_class = argparse.RawTextHelpFormatter,
-            epilog =
-                'examples:'
-                '\n  UnicastDeauth.py -i wlan0 -e target -b -n 8'
-                '\n  UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55',
+            epilog = 'examples:\n  ' + '\n  '.join(examples),
         )
         parser.add_argument(
             '-i',
@@ -247,17 +244,19 @@ def main():
             default = [],
         )
         args = parser.parse_args()
+        filters = [
+            'wlan type mgt subtype beacon',
+            'wlan type mgt subtype probe-req',
+            'wlan type mgt subtype probe-resp',
+            'wlan type ctl',
+            'wlan type data',
+        ]
         bssids_aps_dict = {} # {ap bssid: network bssid}
         bssids_stas_dict = {} # {sta bssid: ap bssid}
         deauth_socket = scapy_conf.L2socket(iface = args.wifi_interface)
         scapy_sniff(
             iface = args.wifi_interface,
-            filter =
-                BPF_DOT11_BEACON + ' or ' +
-                BPF_DOT11_PROBE_REQ + ' or ' +
-                BPF_DOT11_PROBE_RESP + ' or ' +
-                BPF_DOT11_CONTROL + ' or ' +
-                BPF_DOT11_DATA,
+            filter = ' or '.join(filters),
             prn = sniffer_wrapper(
                 args.wifi_essid,
                 args.broadcast_enabled,
