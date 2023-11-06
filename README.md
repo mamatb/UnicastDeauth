@@ -47,7 +47,8 @@ options:
   -wl BSSIDS_WHITELIST  comma-separated BSSIDs whitelist
 
 examples:
-  UnicastDeauth.py -i wlan0 -e target -b -n 8
+  UnicastDeauth.py -i wlan0 -e target -b
+  UnicastDeauth.py -i wlan0 -e target -n 8
   UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55
 ```
 
