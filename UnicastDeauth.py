@@ -67,14 +67,16 @@ def get_src_dst_network(frame):
     '''frame control field parsing'''
     
     try:
-        if frame.FCfield & 0x1:
-            if not (frame.FCfield & 0x2):
+        to_ds = frame.FCfield & 0x1
+        from_ds= frame.FCfield & 0x2
+        if to_ds:
+            bssid_dst = frame.addr3
+            if not from_ds:
                 bssid_src = frame.addr2
-                bssid_dst = frame.addr3
                 bssid_network = frame.addr1
         else:
             bssid_dst = frame.addr1
-            if frame.FCfield & 0x2:
+            if from_ds:
                 bssid_src = frame.addr3
                 bssid_network = frame.addr2
             else:
