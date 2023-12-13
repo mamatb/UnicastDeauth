@@ -34,17 +34,17 @@ ip link set dev "${WIFI_INTERFACE}" up
 ```
 After that just follow the help section of the script:
 ```
-usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e WIFI_ESSID [-b] [-n DEAUTH_WAVES] [-wl BSSIDS_WHITELIST]
+usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e ESSID [-b] [-n DEAUTH_ROUNDS] [-wl APS_WHITELIST]
 
 UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks
 
 options:
-  -h, --help            show this help message and exit
-  -i WIFI_INTERFACE     Wi-Fi interface
-  -e WIFI_ESSID         target Wi-Fi ESSID
-  -b                    broadcast deauthentication flag
-  -n DEAUTH_WAVES       number of deauthentication waves
-  -wl BSSIDS_WHITELIST  comma-separated BSSIDs whitelist
+  -h, --help         show this help message and exit
+  -i WIFI_INTERFACE  attacker Wi-Fi interface
+  -e ESSID           target ESSID
+  -b                 enable broadcast deauthentication
+  -n DEAUTH_ROUNDS   number of deauthentication rounds
+  -wl APS_WHITELIST  comma-separated APs whitelist
 
 examples:
   UnicastDeauth.py -i wlan0 -e target -b
