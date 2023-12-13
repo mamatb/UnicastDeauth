@@ -30,7 +30,7 @@ class MsgException(Exception):
     def __str__(self):
         return f'[!] Error! {self.message}:\n    {self.exception}'
 
-class APs:
+class AccessPoints:
     def __init__(self):
         self.bssids = set()
     
@@ -44,7 +44,7 @@ class APs:
             f'\n    access point = {bssid}'
         )
 
-class STAs:
+class Stations:
     def __init__(self):
         self.bssids = {} # {bssid_sta: bssid_ap}
     
@@ -59,7 +59,7 @@ class STAs:
             f'\n    access point = {bssid_ap}'
         )
 
-class APs_whitelist:
+class AccessPointsWhitelist:
     def __init__(self, bssids_string):
         self.bssids = set()
         self.bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
@@ -255,7 +255,7 @@ def main():
             dest = 'aps_whitelist',
             help = 'comma-separated BSSIDs whitelist',
             required = False,
-            type = APs_whitelist,
+            type = AccessPointsWhitelist,
             default = [],
         )
         args = parser.parse_args()
@@ -266,8 +266,8 @@ def main():
             'wlan type ctl',
             'wlan type data',
         ]
-        access_points = APs()
-        stations = STAs()
+        access_points = AccessPoints()
+        stations = Stations()
         sendrecv.sniff(
             iface = args.wifi_interface,
             filter = ' or '.join(filters),
