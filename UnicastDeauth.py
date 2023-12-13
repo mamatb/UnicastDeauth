@@ -95,7 +95,7 @@ def get_src_dst_network(frame):
     
     try:
         to_ds = frame.FCfield & 0x1
-        from_ds= frame.FCfield & 0x2
+        from_ds = frame.FCfield & 0x2
         if to_ds:
             bssid_dst = frame.addr3
             if not from_ds:
