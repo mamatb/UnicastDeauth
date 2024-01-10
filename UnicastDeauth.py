@@ -23,21 +23,21 @@ DEAUTH_COUNT = 64
 class MsgException(Exception):
     def __init__(self, exception, message = 'Unknown error', *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.exception = exception
-        self.message = message
+        self._exception = exception
+        self._message = message
     
     def __str__(self):
-        return f'[!] Error! {self.message}:\n    {self.exception}'
+        return f'[!] Error! {self._message}:\n    {self._exception}'
 
 class AccessPoints:
     def __init__(self, bssids):
-        self.bssids = bssids.get_all() if isinstance(bssids, AccessPointsParser) else set()
+        self._bssids = bssids.get_bssids() if isinstance(bssids, AccessPointsParser) else set()
     
     def __contains__(self, bssid):
-        return bssid in self.bssids
+        return bssid in self._bssids
     
     def add(self, bssid, essid):
-        self.bssids.add(bssid)
+        self._bssids.add(bssid)
         print_info(
             f'AP detected for network {essid}'
             f'\n    access point = {bssid}'
@@ -45,28 +45,28 @@ class AccessPoints:
 
 class AccessPointsParser:
     def __init__(self, bssids_string):
-        self.bssids = set()
-        self.bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
+        self._bssids = set()
+        self._bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
         for bssid in bssids_string.split(','):
             bssid = bssid.strip().lower()
-            if self.bssid_regex.match(bssid):
-                self.bssids.add(bssid)
+            if self._bssid_regex.match(bssid):
+                self._bssids.add(bssid)
     
     def __contains__(self, bssid):
-        return bssid in self.bssids
+        return bssid in self._bssids
     
-    def get_all(self):
-        return self.bssids
+    def get_bssids(self):
+        return self._bssids
 
 class Stations:
     def __init__(self):
-        self.bssids = {} # {bssid_sta: bssid_ap}
+        self._bssids = {} # {bssid_sta: bssid_ap}
     
     def get(self, bssid_sta):
-        return self.bssids.get(bssid_sta)
+        return self._bssids.get(bssid_sta)
     
     def update(self, bssid_sta, bssid_ap, essid):
-        self.bssids.update({bssid_sta: bssid_ap})
+        self._bssids.update({bssid_sta: bssid_ap})
         print_info(
             f'STA detected for network {essid}'
             f'\n    station      = {bssid_sta}'
@@ -277,7 +277,7 @@ def main():
             'wlan type ctl',
             'wlan type data',
         ]
-        access_points = AccessPoints(args.aps_target)
+        access_points = AccessPoints(args.aps_targets)
         stations = Stations()
         sendrecv.sniff(
             iface = args.wifi_interface,
