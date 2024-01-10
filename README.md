@@ -34,23 +34,23 @@ ip link set dev "${WIFI_INTERFACE}" up
 ```
 After that just follow the help section of the script:
 ```
-usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e ESSID [-b] [-n DEAUTH_ROUNDS] [-t APS_TARGETS] [-wl APS_WHITELIST]
+usage: UnicastDeauth.py [-h] -i WIFI_INTERFACE -e ESSID [-b] [-n DEAUTH_ROUNDS] [-tl APS_TARGETLIST] [-wl APS_WHITELIST]
 
 UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks
 
 options:
-  -h, --help         show this help message and exit
-  -i WIFI_INTERFACE  attacker Wi-Fi interface
-  -e ESSID           target ESSID
-  -b                 enable broadcast deauthentication
-  -n DEAUTH_ROUNDS   number of deauthentication rounds
-  -t APS_TARGETS     comma-separated known target APs
-  -wl APS_WHITELIST  comma-separated APs whitelist
+  -h, --help          show this help message and exit
+  -i WIFI_INTERFACE   attacker Wi-Fi interface
+  -e ESSID            target ESSID
+  -b                  enable broadcast deauthentication
+  -n DEAUTH_ROUNDS    number of deauthentication rounds
+  -tl APS_TARGETLIST  comma-separated known target APs
+  -wl APS_WHITELIST   comma-separated APs whitelist
 
 examples:
   UnicastDeauth.py -i wlan0 -e NETGEAR -b
   UnicastDeauth.py -i wlan0 -e NETGEAR -n 8
-  UnicastDeauth.py -i wlan0 -e NETGEAR -t 00:11:22:33:44:00,00:11:22:33:44:55
+  UnicastDeauth.py -i wlan0 -e NETGEAR -tl 00:11:22:33:44:00,00:11:22:33:44:55
   UnicastDeauth.py -i wlan0 -e NETGEAR -wl 00:11:22:33:44:00,00:11:22:33:44:55
 ```
 
