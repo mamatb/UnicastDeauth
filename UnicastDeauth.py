@@ -34,7 +34,6 @@ class MsgException(Exception):
         )
 
 class AccessPoints:
-    
     _bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
     
     def __init__(self, essid: str, bssids: str = None) -> None:
