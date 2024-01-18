@@ -11,6 +11,7 @@
 # check for protected management frames
 
 import argparse
+from collections.abc import Iterator
 import multiprocessing
 from re import compile as re_compile
 from scapy import sendrecv
@@ -45,14 +46,12 @@ class AccessPoints:
                 if self._bssid_regex.match(bssid):
                     self._bssids.add(bssid)
     
-    def __contains__(self, bssid: str) -> bool:
-        return bssid in self._bssids
+    def __iter__(self) -> Iterator[str]:
+        for bssid in self._bssids:
+            yield bssid
     
     def get_essid(self) -> str:
       return self._essid
-    
-    def get_bssids(self) -> set[str]:
-        return self._bssids
     
     def add(self, bssid: str) -> None:
         self._bssids.add(bssid)
@@ -380,7 +379,7 @@ def main() -> None:
         aps_whitelist = AccessPoints(args.essid, args.aps_whitelist)
         stations = Stations(args.essid)
         if deauth_config.get_broadcast():
-            for bssid in aps_targetlist.get_bssids():
+            for bssid in aps_targetlist:
                 broadcast_deauth(deauth_config, bssid, bssid)
         sendrecv.sniff(
             iface = args.wifi_interface,
