@@ -111,16 +111,16 @@ def is_unicast(bssid: str) -> bool:
         raise MsgException(e, 'BSSID could not be processed')
     return unicast
 
-def get_src_dst_net(frame: dot11.Dot11) -> tuple[str | None, str | None, str | None]:
+def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str] | tuple[None, None, None]:
     '''frame control field parsing'''
     
     try:
         to_ds = frame.FCfield & 0x1
         from_ds = frame.FCfield & 0x2
         if to_ds:
-            bssid_dst = frame.addr3
             if not from_ds:
                 bssid_src = frame.addr2
+                bssid_dst = frame.addr3
                 bssid_net = frame.addr1
         else:
             bssid_dst = frame.addr1
