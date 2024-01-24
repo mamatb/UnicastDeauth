@@ -34,6 +34,9 @@ class MsgException(Exception):
             f'[!] Error! {self._message}:'
             f'\n    {self._exception}'
         )
+    
+    def panic(self) -> None:
+        print(self, file = sys.stderr)
 
 class AccessPoints:
     _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
@@ -92,11 +95,6 @@ class DeauthConfig:
     
     def get_rounds(self) -> int:
         return self._deauth_rounds
-
-def panic(msg_exception: MsgException) -> None:
-    '''exception handling'''
-    
-    print(msg_exception, file = sys.stderr)
 
 def print_info(message: str) -> None:
     '''additional info printing'''
@@ -387,9 +385,9 @@ def main() -> None:
             prn = sniffer_wrapper(deauth_config, aps_targetlist, aps_whitelist, stations),
         )
     except MsgException as msg_exception:
-        panic(msg_exception)
+        msg_exception.panic()
     except Exception as e:
-        panic(MsgException(e))
+        MsgException(e).panic()
     finally:
         try:
             for child in multiprocessing.active_children():
