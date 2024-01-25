@@ -41,14 +41,13 @@ class MsgException(Exception):
 class AccessPoints:
     _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
     
-    def __init__(self, essid: str, bssids: str = None) -> None:
+    def __init__(self, essid: str, bssids: str = '') -> None:
         self._essid = essid
         self._bssids = set()
-        if bssids:
-            for bssid in bssids.split(','):
-                bssid = bssid.strip().lower()
-                if self._bssid_regex.match(bssid):
-                    self._bssids.add(bssid)
+        for bssid in bssids.split(','):
+            bssid = bssid.strip().lower()
+            if self._bssid_regex.match(bssid):
+                self._bssids.add(bssid)
     
     def __iter__(self) -> abc.Iterator[str]:
         for bssid in self._bssids:
@@ -114,14 +113,16 @@ def is_unicast(bssid: str) -> bool:
         raise MsgException(e, 'BSSID could not be processed')
     return unicast
 
-def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str] | tuple[None, None, None]:
+def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str]:
     '''frame control field parsing'''
     
     try:
         to_ds = frame.FCfield & 0x1
         from_ds = frame.FCfield & 0x2
         if to_ds:
-            if not from_ds:
+            if from_ds:
+                bssid_src = bssid_dst = bssid_net = ''
+            else:
                 bssid_src = frame.addr2
                 bssid_dst = frame.addr3
                 bssid_net = frame.addr1
@@ -216,7 +217,7 @@ def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
     try:
         bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
         if (
-            bssid_src and bssid_dst and bssid_net and
+            bssid_net and
             bssid_src not in aps_targetlist and
             bssid_src not in aps_whitelist
         ):
@@ -239,7 +240,7 @@ def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
     try:
         bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
         if (
-            bssid_src and bssid_dst and bssid_net and
+            bssid_net and
             is_unicast(bssid_dst) and
             bssid_dst not in aps_targetlist and
             bssid_dst not in aps_whitelist
@@ -262,7 +263,7 @@ def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
     
     try:
         bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
-        if bssid_src and bssid_dst and bssid_net:
+        if bssid_net:
             if (
                 is_unicast(bssid_dst) and
                 bssid_src in aps_targetlist and
@@ -357,11 +358,13 @@ def main() -> None:
         parser.add_argument(
             '-tl',
             dest = 'aps_targetlist',
+            default = '',
             help = 'comma-separated known target APs',
         )
         parser.add_argument(
             '-wl',
             dest = 'aps_whitelist',
+            default = '',
             help = 'comma-separated APs whitelist',
         )
         args = parser.parse_args()
