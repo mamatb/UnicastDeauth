@@ -108,10 +108,9 @@ def is_unicast(bssid: str) -> bool:
     '''bssid type checking'''
     
     try:
-        unicast = not (int(bssid.split(':')[0], 16) & 0x1)
+        return not (int(bssid.split(':')[0], 16) & 0x1)
     except Exception as e:
         raise MsgException(e, 'BSSID could not be processed')
-    return unicast
 
 def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str]:
     '''frame control field parsing'''
@@ -134,9 +133,9 @@ def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str]:
             else:
                 bssid_src = frame.addr2
                 bssid_net = frame.addr3
+        return bssid_src, bssid_dst, bssid_net
     except Exception as e:
         raise MsgException(e, 'Frame Control field could not be processed')
-    return bssid_src, bssid_dst, bssid_net
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
@@ -145,7 +144,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
     try:
         def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(deauth_config.deauth_rounds):
+            for _ in range(deauth_config.deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
@@ -188,7 +187,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
     try:
         def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
-            for i in range(deauth_config.deauth_rounds):
+            for _ in range(deauth_config.deauth_rounds):
                 sendrecv.sendp(
                     dot11.RadioTap() /
                         dot11.Dot11(
