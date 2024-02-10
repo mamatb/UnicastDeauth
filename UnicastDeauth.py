@@ -23,17 +23,24 @@ BROADCAST = 'ff:ff:ff:ff:ff:ff'
 DEAUTH_COUNT = 64
 
 class MsgException(Exception):
-    def __init__(self, exception: Exception, message: str = 'Unknown error',
-                 *args, **kwargs) -> None:
+    _count = 0
+    
+    def __init__(self, message: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._exception = exception
         self._message = message
+        MsgException._count += 1
+        self._count = MsgException._count
     
     def __str__(self) -> str:
-        return (
-            f'[!] Error! {self._message}:'
-            f'\n    {self._exception}'
-        )
+        output = []
+        if self._count == MsgException._count:
+            output.append('[!] Exception: ')
+        output.append(f'{self._message}')
+        if self.__cause__:
+            output.append('. Caused by:\n')
+            output.append('    ' * (MsgException._count - self._count + 1))
+            output.append(f'[!] Exception: {self.__cause__}')
+        return ''.join(output)
     
     def panic(self) -> None:
         print(self, file = sys.stderr)
@@ -41,12 +48,12 @@ class MsgException(Exception):
 class AccessPoints:
     _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
     
-    def __init__(self, essid: str, bssids: str = '') -> None:
+    def __init__(self, essid: str, bssids: str) -> None:
         self._essid = essid
         self._bssids = set()
         for bssid in bssids.split(','):
             bssid = bssid.strip().lower()
-            if self._bssid_regex.match(bssid):
+            if AccessPoints._bssid_regex.match(bssid):
                 self._bssids.add(bssid)
     
     def __iter__(self) -> abc.Iterator[str]:
@@ -122,7 +129,7 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str]:
                 bssid_net = self.addr3
         return bssid_src, bssid_dst, bssid_net
     except Exception as e:
-        raise MsgException(e, 'Frame Control field could not be processed')
+        raise MsgException('Frame Control field could not be parsed') from e
 dot11.RadioTap.get_src_dst_net = get_src_dst_net
 
 def print_info(message: str) -> None:
@@ -131,12 +138,12 @@ def print_info(message: str) -> None:
     print(f'[!] Info: {message}', file = sys.stderr)
 
 def is_unicast(bssid: str) -> bool:
-    '''bssid type checking'''
+    '''bssid categorizing'''
     
     try:
         return not (int(bssid.split(':')[0], 16) & 0x1)
     except Exception as e:
-        raise MsgException(e, 'BSSID could not be processed')
+        raise MsgException('BSSID could not be categorized') from e
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
@@ -180,7 +187,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
             f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap}'
         )
     except Exception as e:
-        raise MsgException(e, 'Unicast deauthentication frames could not be sent')
+        raise MsgException('unicast deauthentication frames could not be sent') from e
 
 def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str) -> None:
     '''broadcast deauthentication'''
@@ -207,7 +214,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
             f' deauthentication frames from AP {bssid_ap}'
         )
     except Exception as e:
-        raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
+        raise MsgException('broadcast deauthentication frames could not be sent') from e
 
 def handle_beacon_proberesp(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
@@ -231,7 +238,7 @@ def handle_beacon_proberesp(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
-        raise MsgException(e, 'beacon and/or probe-resp frames could not be processed')
+        raise MsgException('beacon/probe-resp frame could not be processed') from e
 
 def handle_probereq(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist :AccessPoints) -> None:
@@ -255,7 +262,7 @@ def handle_probereq(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     break
                 dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
     except Exception as e:
-        raise MsgException(e, 'probe-req frames could not be processed')
+        raise MsgException('probe-req frame could not be processed') from e
 
 def handle_ctl_data(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, stations: Stations) -> None:
@@ -278,7 +285,7 @@ def handle_ctl_data(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                 stations[bssid_src] = bssid_dst
                 unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_net)
     except Exception as e:
-        raise MsgException(e, 'ctl and/or data frames could not be processed')
+        raise MsgException('ctl/data frame could not be processed') from e
 
 def sniffer_wrapper(deauth_config: DeauthConfig, aps_targetlist: AccessPoints,
                     aps_whitelist: AccessPoints, stations: Stations) -> None:
@@ -308,7 +315,7 @@ def sniffer_wrapper(deauth_config: DeauthConfig, aps_targetlist: AccessPoints,
                     stations,
                 )
         except Exception as e:
-            raise MsgException(e, 'Sniffed frames could not be processed')
+            raise MsgException('sniffed frame could not be processed') from e
     return sniffer_handler
 
 def main() -> None:
