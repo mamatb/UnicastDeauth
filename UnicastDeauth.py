@@ -99,6 +99,32 @@ class DeauthConfig:
     def deauth_rounds(self) -> int:
         return self._deauth_rounds
 
+def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str]:
+    '''frame control field parsing'''
+    
+    try:
+        to_ds = self.FCfield & 0x1
+        from_ds = self.FCfield & 0x2
+        if to_ds:
+            if from_ds:
+                bssid_src = bssid_dst = bssid_net = ''
+            else:
+                bssid_src = self.addr2
+                bssid_dst = self.addr3
+                bssid_net = self.addr1
+        else:
+            bssid_dst = self.addr1
+            if from_ds:
+                bssid_src = self.addr3
+                bssid_net = self.addr2
+            else:
+                bssid_src = self.addr2
+                bssid_net = self.addr3
+        return bssid_src, bssid_dst, bssid_net
+    except Exception as e:
+        raise MsgException(e, 'Frame Control field could not be processed')
+dot11.RadioTap.get_src_dst_net = get_src_dst_net
+
 def print_info(message: str) -> None:
     '''additional info printing'''
     
@@ -111,31 +137,6 @@ def is_unicast(bssid: str) -> bool:
         return not (int(bssid.split(':')[0], 16) & 0x1)
     except Exception as e:
         raise MsgException(e, 'BSSID could not be processed')
-
-def get_src_dst_net(frame: dot11.Dot11) -> tuple[str, str, str]:
-    '''frame control field parsing'''
-    
-    try:
-        to_ds = frame.FCfield & 0x1
-        from_ds = frame.FCfield & 0x2
-        if to_ds:
-            if from_ds:
-                bssid_src = bssid_dst = bssid_net = ''
-            else:
-                bssid_src = frame.addr2
-                bssid_dst = frame.addr3
-                bssid_net = frame.addr1
-        else:
-            bssid_dst = frame.addr1
-            if from_ds:
-                bssid_src = frame.addr3
-                bssid_net = frame.addr2
-            else:
-                bssid_src = frame.addr2
-                bssid_net = frame.addr3
-        return bssid_src, bssid_dst, bssid_net
-    except Exception as e:
-        raise MsgException(e, 'Frame Control field could not be processed')
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
@@ -208,13 +209,13 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
     except Exception as e:
         raise MsgException(e, 'Broadcast deauthentication frames could not be sent')
 
-def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
+def handle_beacon_proberesp(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
                             aps_whitelist: AccessPoints) -> None:
     '''beacon and probe-resp frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
+        bssid_src, bssid_dst, bssid_net = frame.get_src_dst_net()
         if (
             bssid_net and
             bssid_src not in aps_targetlist and
@@ -232,12 +233,12 @@ def handle_beacon_proberesp(frame: dot11.Dot11, deauth_config: DeauthConfig,
     except Exception as e:
         raise MsgException(e, 'beacon and/or probe-resp frames could not be processed')
 
-def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
+def handle_probereq(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist :AccessPoints) -> None:
     '''probe-req frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
+        bssid_src, bssid_dst, bssid_net = frame.get_src_dst_net()
         if (
             bssid_net and
             is_unicast(bssid_dst) and
@@ -256,12 +257,12 @@ def handle_probereq(frame: dot11.Dot11, deauth_config: DeauthConfig,
     except Exception as e:
         raise MsgException(e, 'probe-req frames could not be processed')
 
-def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
+def handle_ctl_data(frame: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, stations: Stations) -> None:
     '''ctl and data frames processing'''
     
     try:
-        bssid_src, bssid_dst, bssid_net = get_src_dst_net(frame)
+        bssid_src, bssid_dst, bssid_net = frame.get_src_dst_net()
         if bssid_net:
             if (
                 is_unicast(bssid_dst) and
@@ -281,7 +282,7 @@ def handle_ctl_data(frame: dot11.Dot11, deauth_config: DeauthConfig,
 
 def sniffer_wrapper(deauth_config: DeauthConfig, aps_targetlist: AccessPoints,
                     aps_whitelist: AccessPoints, stations: Stations) -> None:
-    def sniffer_handler(frame: dot11.Dot11) -> None:
+    def sniffer_handler(frame: dot11.RadioTap) -> None:
         '''sniffed frames processing'''
         
         try:
