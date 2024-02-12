@@ -132,6 +132,18 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str]:
         raise MsgException('Frame Control field could not be parsed') from e
 dot11.RadioTap.get_src_dst_net = get_src_dst_net
 
+def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
+    '''essid parsing'''
+    
+    try:
+        dot11_element = self.getlayer(dot11.Dot11Elt)
+        while dot11_element and dot11_element.ID != 0:
+            dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
+        return dot11_element.info.decode() if dot11_element else None
+    except Exception as e:
+        raise MsgException('ESSID could not be parsed') from e
+dot11.RadioTap.get_essid = get_essid
+
 def print_info(message: str) -> None:
     '''additional info printing'''
     
@@ -226,17 +238,12 @@ def handle_beacon_proberesp(frame: dot11.RadioTap, deauth_config: DeauthConfig,
         if (
             bssid_net and
             bssid_src not in aps_targetlist and
-            bssid_src not in aps_whitelist
+            bssid_src not in aps_whitelist and
+            frame.get_essid() == aps_targetlist.essid
         ):
-            dot11_element = frame.getlayer(dot11.Dot11Elt)
-            while dot11_element:
-                if dot11_element.ID == 0:
-                    if dot11_element.info == bytes(aps_targetlist.essid, 'utf-8'):
-                        aps_targetlist.add(bssid_src)
-                        if deauth_config.broadcast_enabled:
-                            broadcast_deauth(deauth_config, bssid_src, bssid_net)
-                    break
-                dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
+            aps_targetlist.add(bssid_src)
+            if deauth_config.broadcast_enabled:
+                broadcast_deauth(deauth_config, bssid_src, bssid_net)
     except Exception as e:
         raise MsgException('beacon/probe-resp frame could not be processed') from e
 
@@ -250,17 +257,12 @@ def handle_probereq(frame: dot11.RadioTap, deauth_config: DeauthConfig,
             bssid_net and
             is_unicast(bssid_dst) and
             bssid_dst not in aps_targetlist and
-            bssid_dst not in aps_whitelist
+            bssid_dst not in aps_whitelist and
+            frame.get_essid() == aps_targetlist.essid
         ):
-            dot11_element = frame.getlayer(dot11.Dot11Elt)
-            while dot11_element:
-                if dot11_element.ID == 0:
-                    if dot11_element.info == bytes(aps_targetlist.essid, 'utf-8'):
-                        aps_targetlist.add(bssid_dst)
-                        if deauth_config.broadcast_enabled:
-                            broadcast_deauth(deauth_config, bssid_dst, bssid_net)
-                    break
-                dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
+            aps_targetlist.add(bssid_dst)
+            if deauth_config.broadcast_enabled:
+                broadcast_deauth(deauth_config, bssid_dst, bssid_net)
     except Exception as e:
         raise MsgException('probe-req frame could not be processed') from e
 
@@ -288,7 +290,8 @@ def handle_ctl_data(frame: dot11.RadioTap, deauth_config: DeauthConfig,
         raise MsgException('ctl/data frame could not be processed') from e
 
 def sniffer_wrapper(deauth_config: DeauthConfig, aps_targetlist: AccessPoints,
-                    aps_whitelist: AccessPoints, stations: Stations) -> None:
+                    aps_whitelist: AccessPoints, stations: Stations
+                    ) -> abc.Callable[[dot11.RadioTap], None]:
     def sniffer_handler(frame: dot11.RadioTap) -> None:
         '''sniffed frames processing'''
         
