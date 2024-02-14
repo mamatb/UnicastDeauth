@@ -113,24 +113,21 @@ class DeauthConfig:
 
 
 def print_info(message: str) -> None:
-    '''additional info printing'''
-
+    """Print additional information."""
     print(f'[!] Info: {message}', file=sys.stderr)
 
 
 def is_unicast(bssid: str) -> bool:
-    '''bssid categorizing'''
-
+    """Check if a BSSID is unicast."""
     try:
         return int(bssid.split(':')[0], 16) & 1 == 0
     except Exception as e:
-        raise MsgException('BSSID could not be categorized') from e
+        raise MsgException('BSSID could not be classified') from e
 
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
-    '''unicast deauthentication'''
-
+    """Perform unicast deauthentication."""
     try:
         def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
@@ -174,8 +171,7 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
 
 
 def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str) -> None:
-    '''broadcast deauthentication'''
-
+    """Perform broadcast deauthentication."""
     try:
         def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
@@ -203,8 +199,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
 
 
 def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
-    '''essid parsing'''
-
+    """Parse the ESSID of a frame."""
     try:
         dot11_element = self.getlayer(dot11.Dot11Elt)
         while dot11_element is not None and dot11_element.ID != 0:
@@ -215,8 +210,7 @@ def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
 
 
 def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str, str, str]:
-    '''frame control field parsing'''
-
+    """Parse the Frame Control field of a frame."""
     try:
         to_ds = self.FCfield & 1
         from_ds = self.FCfield & 2
@@ -243,8 +237,7 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
                             aps_whitelist: AccessPoints) -> None:
-    '''beacon and probe-resp frames processing'''
-
+    """Process frame of type beacon or probe-resp."""
     try:
         bssid_src, _, bssid_net = self.get_src_dst_net()
         if (
@@ -262,8 +255,7 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
 def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist: AccessPoints) -> None:
-    '''probe-req frames processing'''
-
+    """Process frame of type probe-req."""
     try:
         _, bssid_dst, bssid_net = self.get_src_dst_net()
         if (
@@ -282,8 +274,7 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
 def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, stations: Stations) -> None:
-    '''ctl and data frames processing'''
-
+    """Process frame of type ctl or data."""
     try:
         bssid_src, bssid_dst, bssid_net = self.get_src_dst_net()
         if bssid_net is not None:
@@ -307,8 +298,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
 def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
                  aps_targetlist: AccessPoints, aps_whitelist: AccessPoints,
                  stations: Stations) -> None:
-    '''sniffed frames processing'''
-
+    """Process sniffed frame."""
     try:
         if self.haslayer(dot11.Dot11Beacon) or self.haslayer(dot11.Dot11ProbeResp):
             self.handle_beacon_proberesp(
@@ -332,9 +322,7 @@ def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
         raise MsgException('sniffed frame could not be processed') from e
 
 
-def main() -> None:
-    '''main'''
-
+def main() -> None:  # pylint: disable=C0116
     try:
         examples = [
             'examples:',
