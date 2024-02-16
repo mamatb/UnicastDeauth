@@ -117,14 +117,6 @@ def print_info(message: str) -> None:
     print(f'[!] Info: {message}', file=sys.stderr)
 
 
-def is_unicast(bssid: str) -> bool:
-    """Check if a BSSID is unicast."""
-    try:
-        return int(bssid.split(':')[0], 16) & 1 == 0
-    except Exception as e:
-        raise MsgException('BSSID could not be classified') from e
-
-
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
     """Perform unicast deauthentication."""
@@ -199,7 +191,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
 
 
 def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
-    """Parse the ESSID of a frame."""
+    """Parse ESSID of frame."""
     try:
         dot11_element = self.getlayer(dot11.Dot11Elt)
         while dot11_element is not None and dot11_element.ID != 0:
@@ -210,28 +202,36 @@ def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
 
 
 def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str, str, str]:
-    """Parse the Frame Control field of a frame."""
+    """Parse Frame Control field of frame."""
     try:
+        bssid_src = bssid_dst = bssid_net = None
         to_ds = self.FCfield & 1
         from_ds = self.FCfield & 2
-        if to_ds != 0:
-            if from_ds != 0:
-                bssid_src = bssid_dst = bssid_net = None
+        if to_ds == 0:
+            bssid_dst = self.addr1
+            if from_ds == 0:
+                bssid_src = self.addr2
+                bssid_net = self.addr3
             else:
+                bssid_src = self.addr3
+                bssid_net = self.addr2
+        else:
+            if from_ds == 0:
                 bssid_src = self.addr2
                 bssid_dst = self.addr3
                 bssid_net = self.addr1
-        else:
-            bssid_dst = self.addr1
-            if from_ds != 0:
-                bssid_src = self.addr3
-                bssid_net = self.addr2
-            else:
-                bssid_src = self.addr2
-                bssid_net = self.addr3
         return bssid_src, bssid_dst, bssid_net
     except Exception as e:
         raise MsgException('Frame Control field could not be parsed') from e
+
+
+def is_unicast(self: dot11.RadioTap) -> bool:
+    """Check if frame is unicast."""
+    try:
+        _, bssid_dst, _ = self.get_src_dst_net()
+        return int(bssid_dst.split(':')[0], 16) & 1 == 0
+    except Exception as e:
+        raise MsgException('frame could not be classified') from e
 
 
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
@@ -260,7 +260,7 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
         _, bssid_dst, bssid_net = self.get_src_dst_net()
         if (
             bssid_net is not None
-            and is_unicast(bssid_dst)
+            and self.is_unicast()
             and bssid_dst not in aps_targetlist
             and bssid_dst not in aps_whitelist
             and self.get_essid() == aps_targetlist.essid
@@ -279,7 +279,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
         bssid_src, bssid_dst, bssid_net = self.get_src_dst_net()
         if bssid_net is not None:
             if (
-                is_unicast(bssid_dst)
+                self.is_unicast()
                 and bssid_src in aps_targetlist
                 and stations[bssid_dst] != bssid_src
             ):
@@ -388,6 +388,7 @@ def main() -> None:  # pylint: disable=C0116
         methods_dot11_RadioTap = [
             get_essid,
             get_src_dst_net,
+            is_unicast,
             handle_beacon_proberesp,
             handle_probereq,
             handle_ctl_data,
