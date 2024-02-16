@@ -215,11 +215,10 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str
             else:
                 bssid_src = self.addr3
                 bssid_net = self.addr2
-        else:
-            if from_ds == 0:
-                bssid_src = self.addr2
-                bssid_dst = self.addr3
-                bssid_net = self.addr1
+        elif from_ds == 0:
+            bssid_src = self.addr2
+            bssid_dst = self.addr3
+            bssid_net = self.addr1
         return bssid_src, bssid_dst, bssid_net
     except Exception as e:
         raise MsgException('Frame Control field could not be parsed') from e
