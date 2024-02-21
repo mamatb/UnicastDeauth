@@ -80,9 +80,6 @@ class Stations:
         self._essid = essid
         self._bssids = {}  # {bssid_sta: bssid_ap}
 
-    def __getitem__(self, bssid_sta: str) -> typing.Optional[str]:
-        return self._bssids.get(bssid_sta)
-
     def __setitem__(self, bssid_sta: str, bssid_ap: str) -> None:
         self._bssids[bssid_sta] = bssid_ap
         print_info(
@@ -90,6 +87,9 @@ class Stations:
             f'\n    station      = {bssid_sta}'
             f'\n    access point = {bssid_ap}'
         )
+
+    def get(self, bssid_sta: str) -> typing.Optional[str]:
+        return self._bssids.get(bssid_sta)
 
 
 class DeauthConfig:
@@ -280,13 +280,13 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
             if (
                 self.is_unicast()
                 and bssid_src in aps_targetlist
-                and stations[bssid_dst] != bssid_src
+                and stations.get(bssid_dst) != bssid_src
             ):
                 stations[bssid_dst] = bssid_src
                 unicast_deauth(deauth_config, bssid_dst, bssid_src, bssid_net)
             elif (
                 bssid_dst in aps_targetlist
-                and stations[bssid_src] != bssid_dst
+                and stations.get(bssid_src) != bssid_dst
             ):
                 stations[bssid_src] = bssid_dst
                 unicast_deauth(deauth_config, bssid_src, bssid_dst, bssid_net)
