@@ -54,8 +54,7 @@ class AccessPoints:
     def __init__(self, essid: str, bssids: str) -> None:
         self._essid = essid
         self._bssids = set()
-        for bssid in bssids.split(','):
-            bssid = bssid.strip().lower()
+        for bssid in map(str.lower, bssids.split(',')):
             if AccessPoints._bssid_regex.match(bssid):
                 self._bssids.add(bssid)
 
