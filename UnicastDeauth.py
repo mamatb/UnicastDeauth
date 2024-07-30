@@ -19,7 +19,6 @@ from collections import abc
 import multiprocessing
 import re
 import sys
-import typing
 
 from scapy import sendrecv
 from scapy.layers import dot11
@@ -112,7 +111,7 @@ class Stations:
             f'\n    access point = {bssid_ap}'
         )
 
-    def get(self, bssid_sta: str) -> typing.Optional[str]:
+    def get(self, bssid_sta: str) -> str | None:
         return self._bssids.get(bssid_sta)
 
 
@@ -248,7 +247,7 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
         raise MsgException('broadcast deauthentication frames could not be sent') from e
 
 
-def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
+def get_essid(self: dot11.RadioTap) -> str | None:
     """Parses the ESSID of a Wi-Fi frame.
 
     Args:
@@ -266,7 +265,7 @@ def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
         raise MsgException('ESSID could not be parsed') from e
 
 
-def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str, str, str]:
+def get_src_dst_net(self: dot11.RadioTap) -> tuple[str, str, str] | tuple[None, None, None]:
     """Parses the Frame Control field of a Wi-Fi frame.
 
     Args:
