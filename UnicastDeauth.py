@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi deauthentication attacks
+# UnicastDeauth is a simple Python 3 script that automates unicast Wi-Fi
+# deauthentication attacks
+#
 # author - mamatb (t.me/m_amatb)
 # location - https://github.com/mamatb/UnicastDeauth
 # style guide - https://google.github.io/styleguide/pyguide.html
@@ -8,7 +10,9 @@
 # TODO
 #
 # add module docstring
+# add tests using pytest
 # check for protected management frames
+
 
 import argparse
 from collections import abc
@@ -25,6 +29,13 @@ DEAUTH_COUNT = 64
 
 
 class MsgException(Exception):
+    """Simple custom exception.
+
+    Attributes:
+        class._count: total depth of the exception traceback.
+        _message: description of the exception.
+        _count: depth level in the exception traceback.
+    """
     _count = 0
 
     def __init__(self, message: str, *args, **kwargs) -> None:
@@ -49,6 +60,13 @@ class MsgException(Exception):
 
 
 class AccessPoints:
+    """Collection of Wi-Fi access points.
+
+    Attributes:
+        class._bssid_regex: regex to validate BSSIDs.
+        _essid: ESSID used by the access points.
+        _bssids: set of BSSIDs used by the access points.
+    """
     _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
 
     def __init__(self, essid: str, bssids: str) -> None:
@@ -75,9 +93,16 @@ class AccessPoints:
 
 
 class Stations:
+    """Collection of Wi-Fi stations.
+
+    Attributes:
+        _essid: ESSID used by the stations.
+        _bssids: dict of {bssid_sta: bssid_ap} used by the stations.
+    """
+
     def __init__(self, essid: str) -> None:
         self._essid = essid
-        self._bssids = {}  # {bssid_sta: bssid_ap}
+        self._bssids = {}
 
     def __setitem__(self, bssid_sta: str, bssid_ap: str) -> None:
         self._bssids[bssid_sta] = bssid_ap
@@ -92,6 +117,14 @@ class Stations:
 
 
 class DeauthConfig:
+    """Configuration of deauthentication attacks.
+
+    Attributes:
+        _wifi_interface: attacker Wi-Fi interface.
+        _broadcast_enabled: whether broadcast deauthentication is enabled.
+        _deauth_rounds: number of deauthentication rounds.
+    """
+
     def __init__(self, wifi_interface: str, broadcast_enabled: bool,
                  deauth_rounds: int) -> None:
         self._wifi_interface = wifi_interface
@@ -112,13 +145,30 @@ class DeauthConfig:
 
 
 def print_info(message: str) -> None:
-    """Print additional information."""
+    """Prints additional information.
+
+    Args:
+        message: additional information to print.
+
+    Returns:
+        None.
+    """
     print(f'[!] Info: {message}', file=sys.stderr)
 
 
 def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
                    bssid_net: str) -> None:
-    """Perform unicast deauthentication."""
+    """Performs unicast deauthentication.
+
+    Args:
+        deauth_config: configuration of the deauthentication attack.
+        bssid_sta: BSSID used by the station.
+        bssid_ap: BSSID used by the access point.
+        bssid_net: BSSID used by the network.
+
+    Returns:
+        None.
+    """
     try:
         def unicast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
@@ -162,7 +212,16 @@ def unicast_deauth(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
 
 
 def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str) -> None:
-    """Perform broadcast deauthentication."""
+    """Performs broadcast deauthentication.
+
+    Args:
+        deauth_config: configuration of the deauthentication attack.
+        bssid_ap: BSSID used by the access point.
+        bssid_net: BSSID used by the network.
+
+    Returns:
+        None.
+    """
     try:
         def broadcast_deauth_parallel() -> None:
             sys.stderr = sys.stdout = None
@@ -190,7 +249,14 @@ def broadcast_deauth(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str)
 
 
 def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
-    """Parse ESSID of frame."""
+    """Parses the ESSID of a Wi-Fi frame.
+
+    Args:
+        self: Wi-Fi frame.
+
+    Returns:
+        ESSID of the Wi-Fi frame or None.
+    """
     try:
         dot11_element = self.getlayer(dot11.Dot11Elt)
         while dot11_element is not None and dot11_element.ID != 0:
@@ -201,7 +267,14 @@ def get_essid(self: dot11.RadioTap) -> typing.Optional[str]:
 
 
 def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str, str, str]:
-    """Parse Frame Control field of frame."""
+    """Parses the Frame Control field of a Wi-Fi frame.
+
+    Args:
+        self: Wi-Fi frame.
+
+    Returns:
+        source, destination and network BSSIDs of the Wi-Fi frame or None.
+    """
     try:
         bssid_src = bssid_dst = bssid_net = None
         to_ds = self.FCfield & 1
@@ -224,18 +297,35 @@ def get_src_dst_net(self: dot11.RadioTap) -> tuple[None, None, None] | tuple[str
 
 
 def is_unicast(self: dot11.RadioTap) -> bool:
-    """Check if frame is unicast."""
+    """Checks if a Wi-Fi frame is unicast.
+
+    Args:
+        self: Wi-Fi frame.
+
+    Returns:
+        whether the Wi-Fi frame is unicast.
+    """
     try:
         _, bssid_dst, _ = self.get_src_dst_net()
         return int(bssid_dst.split(':')[0], 16) & 1 == 0
     except Exception as e:
-        raise MsgException('frame could not be classified') from e
+        raise MsgException('Wi-Fi frame could not be classified') from e
 
 
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
                             aps_whitelist: AccessPoints) -> None:
-    """Process frame of type beacon or probe-resp."""
+    """Processes a Wi-Fi frame of type beacon or probe-resp.
+
+    Args:
+        self: Wi-Fi frame.
+        deauth_config: configuration of the deauthentication attack.
+        aps_targetlist: target Wi-Fi access points.
+        aps_whitelist: whitelisted Wi-Fi access points.
+
+    Returns:
+        None.
+    """
     try:
         bssid_src, _, bssid_net = self.get_src_dst_net()
         if (
@@ -253,7 +343,17 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
 def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist: AccessPoints) -> None:
-    """Process frame of type probe-req."""
+    """Processes a Wi-Fi frame of type probe-req.
+
+    Args:
+        self: Wi-Fi frame.
+        deauth_config: configuration of the deauthentication attack.
+        aps_targetlist: target Wi-Fi access points.
+        aps_whitelist: whitelisted Wi-Fi access points.
+
+    Returns:
+        None.
+    """
     try:
         _, bssid_dst, bssid_net = self.get_src_dst_net()
         if (
@@ -272,7 +372,17 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
 def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, stations: Stations) -> None:
-    """Process frame of type ctl or data."""
+    """Processes a Wi-Fi frame of type ctl or data.
+
+    Args:
+        self: Wi-Fi frame.
+        deauth_config: configuration of the deauthentication attack.
+        aps_targetlist: target Wi-Fi access points.
+        stations: target Wi-Fi stations.
+
+    Returns:
+        None.
+    """
     try:
         bssid_src, bssid_dst, bssid_net = self.get_src_dst_net()
         if bssid_net is not None:
@@ -296,7 +406,18 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
 def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
                  aps_targetlist: AccessPoints, aps_whitelist: AccessPoints,
                  stations: Stations) -> None:
-    """Process sniffed frame."""
+    """Processes a sniffed Wi-Fi frame.
+
+    Args:
+        self: Wi-Fi frame.
+        deauth_config: configuration of the deauthentication attack.
+        aps_targetlist: target Wi-Fi access points.
+        aps_whitelist: whitelisted Wi-Fi access points.
+        stations: target Wi-Fi stations.
+
+    Returns:
+        None.
+    """
     try:
         if self.haslayer(dot11.Dot11Beacon) or self.haslayer(dot11.Dot11ProbeResp):
             self.handle_beacon_proberesp(
@@ -317,7 +438,7 @@ def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 stations,
             )
     except Exception as e:
-        raise MsgException('sniffed frame could not be processed') from e
+        raise MsgException('sniffed Wi-Fi frame could not be processed') from e
 
 
 def main() -> None:  # pylint: disable=C0116
