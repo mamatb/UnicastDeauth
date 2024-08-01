@@ -68,12 +68,13 @@ class AccessPoints:
     """
     _bssid_regex = re.compile('^([0-9a-f]{2}:){5}[0-9a-f]{2}$')
 
-    def __init__(self, essid: str, bssids: str) -> None:
+    def __init__(self, essid: str, bssids: str | None = None) -> None:
         self._essid = essid
         self._bssids = set()
-        for bssid in map(str.lower, bssids.split(',')):
-            if AccessPoints._bssid_regex.match(bssid):
-                self._bssids.add(bssid)
+        if bssids is not None:
+            for bssid in map(str.lower, bssids.split(',')):
+                if AccessPoints._bssid_regex.match(bssid):
+                    self._bssids.add(bssid)
 
     def __iter__(self) -> abc.Iterator[str]:
         for bssid in self._bssids:
@@ -485,13 +486,11 @@ def main() -> None:  # pylint: disable=C0116
         parser.add_argument(
             '-tl',
             dest='aps_targetlist',
-            default='',
             help='comma-separated known target APs',
         )
         parser.add_argument(
             '-wl',
             dest='aps_whitelist',
-            default='',
             help='comma-separated APs whitelist',
         )
         args = parser.parse_args()
