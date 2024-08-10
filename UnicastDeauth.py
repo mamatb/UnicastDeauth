@@ -288,7 +288,7 @@ def is_unicast(self: dot11.RadioTap) -> bool:
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
                             aps_targetlist: AccessPoints,
                             aps_whitelist: AccessPoints) -> None:
-    """Processes a Wi-Fi frame of type beacon or probe-resp.
+    """Processes a Wi-Fi frame of type management, subtype beacon or probe-resp.
 
     Args:
         self: Wi-Fi frame.
@@ -323,7 +323,7 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
 
 def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     aps_targetlist: AccessPoints, aps_whitelist: AccessPoints) -> None:
-    """Processes a Wi-Fi frame of type probe-req.
+    """Processes a Wi-Fi frame of type management, subtype probe-req.
 
     Args:
         self: Wi-Fi frame.
@@ -565,3 +565,4 @@ def main() -> None:  # pylint: disable=C0116
 
 if __name__ == '__main__':
     main()
+
