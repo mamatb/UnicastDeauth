@@ -170,6 +170,14 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
         None.
     """
     try:
+        print_info(
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+            f' deauthentication frames from AP {bssid_ap} to STA {bssid_sta}'
+        )
+        print_info(
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+            f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap}'
+        )
         sys.stderr = sys.stdout = None
         addr1, addr2 = bssid_sta, bssid_ap
         for _ in range(deauth_config.deauth_rounds * 2):
@@ -203,6 +211,10 @@ def broadcast_deauth_parallel(deauth_config: DeauthConfig, bssid_ap: str,
         None.
     """
     try:
+        print_info(
+            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+            f' broadcast deauthentication frames from AP {bssid_ap}'
+        )
         sys.stderr = sys.stdout = None
         for _ in range(deauth_config.deauth_rounds):
             sendrecv.sendp(
@@ -313,10 +325,6 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid_src, bssid_net),
                 ).start()
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' broadcast deauthentication frames from AP {bssid_src}'
-                )
     except Exception as e:
         raise MsgException('beacon/probe-resp frame could not be processed') from e
 
@@ -349,10 +357,6 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid_dst, bssid_net),
                 ).start()
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' broadcast deauthentication frames from AP {bssid_dst}'
-                )
     except Exception as e:
         raise MsgException('probe-req frame could not be processed') from e
 
@@ -383,14 +387,6 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     target=unicast_deauth_parallel,
                     args=(deauth_config, bssid_dst, bssid_src, bssid_net),
                 ).start()
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' deauthentication frames from AP {bssid_src} to STA {bssid_dst}'
-                )
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' deauthentication frames from STA {bssid_dst} to AP {bssid_src}'
-                )
             elif (
                 bssid_dst in aps_targetlist
                 and stations.get(bssid_src) != bssid_dst
@@ -400,14 +396,6 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                     target=unicast_deauth_parallel,
                     args=(deauth_config, bssid_src, bssid_dst, bssid_net),
                 ).start()
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' deauthentication frames from AP {bssid_dst} to STA {bssid_src}'
-                )
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' deauthentication frames from STA {bssid_src} to AP {bssid_dst}'
-                )
     except Exception as e:
         raise MsgException('ctl/data frame could not be processed') from e
 
@@ -536,10 +524,6 @@ def main() -> None:  # pylint: disable=C0116
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid, bssid),
                 ).start()
-                print_info(
-                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                    f' broadcast deauthentication frames from AP {bssid}'
-                )
         sendrecv.sniff(
             iface=args.wifi_interface,
             filter=' or '.join(filters),
