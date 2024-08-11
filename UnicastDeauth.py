@@ -12,6 +12,7 @@
 # add module docstring
 # add tests using pytest
 # check for protected management frames
+# deal with SIGTERM in child processes
 
 
 import argparse
