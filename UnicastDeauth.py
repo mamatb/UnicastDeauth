@@ -325,6 +325,7 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 multiprocessing.Process(
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid_src, bssid_net),
+                    daemon=True,
                 ).start()
     except Exception as e:
         raise MsgException('beacon/probe-resp frame could not be processed') from e
@@ -357,6 +358,7 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 multiprocessing.Process(
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid_dst, bssid_net),
+                    daemon=True,
                 ).start()
     except Exception as e:
         raise MsgException('probe-req frame could not be processed') from e
@@ -387,6 +389,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 multiprocessing.Process(
                     target=unicast_deauth_parallel,
                     args=(deauth_config, bssid_dst, bssid_src, bssid_net),
+                    daemon=True,
                 ).start()
             elif (
                 bssid_dst in aps_targetlist
@@ -396,6 +399,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 multiprocessing.Process(
                     target=unicast_deauth_parallel,
                     args=(deauth_config, bssid_src, bssid_dst, bssid_net),
+                    daemon=True,
                 ).start()
     except Exception as e:
         raise MsgException('ctl/data frame could not be processed') from e
@@ -524,6 +528,7 @@ def main() -> None:  # pylint: disable=C0116
                 multiprocessing.Process(
                     target=broadcast_deauth_parallel,
                     args=(deauth_config, bssid, bssid),
+                    daemon=True,
                 ).start()
         sendrecv.sniff(
             iface=args.wifi_interface,
@@ -539,13 +544,6 @@ def main() -> None:  # pylint: disable=C0116
         msg_exception.panic()
     except Exception as e:
         MsgException(e).panic()
-    finally:
-        try:
-            for child in multiprocessing.active_children():
-                child.terminate()
-        except Exception as e:
-            MsgException(e).panic()
-            sys.exit(-1)
 
 
 if __name__ == '__main__':
