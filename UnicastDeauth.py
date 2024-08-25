@@ -88,8 +88,8 @@ class AccessPoints:
     def add(self, bssid: str) -> None:
         self._bssids.add(bssid)
         print_info(
-            f'AP detected for network {self._essid}'
-            f'\n    access point = {bssid}'
+            f'AP detected for network {self._essid}',
+            f'    access point = {bssid}',
         )
 
 
@@ -108,9 +108,9 @@ class Stations:
     def __setitem__(self, bssid_sta: str, bssid_ap: str) -> None:
         self._bssids[bssid_sta] = bssid_ap
         print_info(
-            f'STA detected for network {self._essid}'
-            f'\n    station      = {bssid_sta}'
-            f'\n    access point = {bssid_ap}'
+            f'STA detected for network {self._essid}',
+            f'    station      = {bssid_sta}',
+            f'    access point = {bssid_ap}',
         )
 
     def get(self, bssid_sta: str) -> str | None:
@@ -145,16 +145,18 @@ class DeauthConfig:
         return self._deauth_rounds
 
 
-def print_info(message: str) -> None:
+def print_info(*messages: str) -> None:
     """Prints additional information.
 
     Args:
-        message: additional information to print.
+        messages: additional information to print.
 
     Returns:
         None.
     """
-    print(f'[!] Info: {message}', file=sys.stderr)
+    print('[!] Info: ', end='', file=sys.stderr)
+    for message in messages:
+        print(message, file=sys.stderr)
 
 
 def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
