@@ -166,6 +166,18 @@ def print_info(*messages: str) -> None:
         print(message, file=sys.stderr)
 
 
+def mute() -> None:
+    """Mutes stdout and stderr.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+    """
+    sys.stdout = sys.stderr = None
+
+
 def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
                             bssid_ap: str, bssid_net: str) -> None:
     """Performs unicast deauthentication, called in parallel.
@@ -180,7 +192,6 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
         None.
     """
     try:
-        sys.stdout = sys.stderr = None
         addr1, addr2 = bssid_sta, bssid_ap
         for _ in range(deauth_config.deauth_rounds * 2):
             sendrecv.sendp(
@@ -209,7 +220,6 @@ def broadcast_deauth_parallel(deauth_config: DeauthConfig, bssid_ap: str,
         None.
     """
     try:
-        sys.stdout = sys.stderr = None
         for _ in range(deauth_config.deauth_rounds):
             sendrecv.sendp(
                 dot11.RadioTap()
@@ -541,7 +551,7 @@ def main() -> None:  # pylint: disable=C0116
         aps_targetlist = AccessPoints(args.essid, args.aps_targetlist)
         aps_whitelist = AccessPoints(args.essid, args.aps_whitelist)
         stations = Stations(args.essid)
-        with mp_pool.Pool(processes=1) as deauth_pool:
+        with mp_pool.Pool(processes=1, initializer=mute) as deauth_pool:
             if deauth_config.broadcast_enabled:
                 for bssid_ap in aps_targetlist:
                     deauth_pool.apply_async(
