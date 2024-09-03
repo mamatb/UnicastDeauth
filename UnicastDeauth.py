@@ -73,23 +73,26 @@ class AccessPoints:
         self._essid = essid
         self._bssids = set()
         if bssids is not None:
-            for bssid in bssids.lower().split(','):
-                if AccessPoints._bssid_regex.match(bssid):
-                    self._bssids.add(bssid)
+            for bssid_ap in bssids.lower().split(','):
+                if AccessPoints._bssid_regex.match(bssid_ap):
+                    self._bssids.add(bssid_ap)
+
+    def __contains__(self, bssid_ap: str) -> bool:
+        return bssid_ap in self._bssids
 
     def __iter__(self) -> abc.Iterator[str]:
-        for bssid in self._bssids:
-            yield bssid
+        for bssid_ap in self._bssids:
+            yield bssid_ap
 
     @property
     def essid(self) -> str:
         return self._essid
 
-    def add(self, bssid: str) -> None:
-        self._bssids.add(bssid)
+    def add(self, bssid_ap: str) -> None:
+        self._bssids.add(bssid_ap)
         print_info(
             f'AP detected for network {self._essid}',
-            f'    access point = {bssid}',
+            f'    access point = {bssid_ap}',
         )
 
 
@@ -112,6 +115,10 @@ class Stations:
             f'    station      = {bssid_sta}',
             f'    access point = {bssid_ap}',
         )
+
+    @property
+    def essid(self) -> str:
+        return self._essid
 
     def get(self, bssid_sta: str) -> str | None:
         return self._bssids.get(bssid_sta)
@@ -536,14 +543,14 @@ def main() -> None:  # pylint: disable=C0116
         stations = Stations(args.essid)
         with mp_pool.Pool(processes=1) as deauth_pool:
             if deauth_config.broadcast_enabled:
-                for bssid in aps_targetlist:
+                for bssid_ap in aps_targetlist:
                     deauth_pool.apply_async(
                         broadcast_deauth_parallel,
-                        (deauth_config, bssid, bssid),
+                        (deauth_config, bssid_ap, bssid_ap),
                     )
                     print_info(
                         f'sending {deauth_config.deauth_rounds} x {DEAUTH_COUNT}'
-                        f' broadcast deauthentication frames from AP {bssid}'
+                        f' broadcast deauthentication frames from AP {bssid_ap}'
                     )
             sendrecv.sniff(
                 iface=args.wifi_interface,
