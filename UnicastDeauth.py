@@ -178,9 +178,9 @@ def mute() -> None:
     sys.stdout = sys.stderr = None
 
 
-def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
-                            bssid_ap: str, bssid_net: str) -> None:
-    """Performs unicast deauthentication, called in parallel.
+def deauth_unicast(deauth_config: DeauthConfig, bssid_sta: str, bssid_ap: str,
+                   bssid_net: str) -> None:
+    """Performs unicast deauthentication.
 
     Args:
         deauth_config: configuration of the deauthentication attack.
@@ -207,9 +207,8 @@ def unicast_deauth_parallel(deauth_config: DeauthConfig, bssid_sta: str,
         raise MsgException('unicast deauthentication frames could not be sent') from e
 
 
-def broadcast_deauth_parallel(deauth_config: DeauthConfig, bssid_ap: str,
-                              bssid_net: str) -> None:
-    """Performs broadcast deauthentication, called in parallel.
+def deauth_broadcast(deauth_config: DeauthConfig, bssid_ap: str, bssid_net: str) -> None:
+    """Performs broadcast deauthentication.
 
     Args:
         deauth_config: configuration of the deauthentication attack.
@@ -323,7 +322,7 @@ def handle_beacon_proberesp(self: dot11.RadioTap, deauth_config: DeauthConfig,
             aps_targetlist.add(bssid_src)
             if deauth_config.broadcast_enabled:
                 deauth_pool.apply_async(
-                    broadcast_deauth_parallel,
+                    deauth_broadcast,
                     (deauth_config, bssid_src, bssid_net),
                 )
                 print_info(
@@ -361,7 +360,7 @@ def handle_probereq(self: dot11.RadioTap, deauth_config: DeauthConfig,
             aps_targetlist.add(bssid_dst)
             if deauth_config.broadcast_enabled:
                 deauth_pool.apply_async(
-                    broadcast_deauth_parallel,
+                    deauth_broadcast,
                     (deauth_config, bssid_dst, bssid_net),
                 )
                 print_info(
@@ -397,7 +396,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
             ):
                 stations[bssid_dst] = bssid_src
                 deauth_pool.apply_async(
-                    unicast_deauth_parallel,
+                    deauth_unicast,
                     (deauth_config, bssid_dst, bssid_src, bssid_net),
                 )
                 print_info(
@@ -414,7 +413,7 @@ def handle_ctl_data(self: dot11.RadioTap, deauth_config: DeauthConfig,
             ):
                 stations[bssid_src] = bssid_dst
                 deauth_pool.apply_async(
-                    unicast_deauth_parallel,
+                    deauth_unicast,
                     (deauth_config, bssid_src, bssid_dst, bssid_net),
                 )
                 print_info(
@@ -555,7 +554,7 @@ def main() -> None:  # pylint: disable=C0116
             if deauth_config.broadcast_enabled:
                 for bssid_ap in aps_targetlist:
                     deauth_pool.apply_async(
-                        broadcast_deauth_parallel,
+                        deauth_broadcast,
                         (deauth_config, bssid_ap, bssid_ap),
                     )
                     print_info(
