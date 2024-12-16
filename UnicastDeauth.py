@@ -291,7 +291,7 @@ def is_unicast(self: dot11.RadioTap) -> bool:
     """
     try:
         _, bssid_dst, _ = self.get_src_dst_net()
-        return int(bssid_dst.split(':')[0], 16) & 1 == 0
+        return int(bssid_dst.split(':', 1)[0], 16) & 1 == 0
     except Exception as e:
         raise MsgException('Wi-Fi frame could not be classified') from e
 
