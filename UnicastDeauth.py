@@ -153,7 +153,7 @@ class DeauthConfig:
 
 
 def print_info(*messages: str) -> None:
-    """Prints additional information.
+    """Prints additional information to stderr.
 
     Args:
         messages: additional information to print.
