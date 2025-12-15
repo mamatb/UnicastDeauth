@@ -11,6 +11,7 @@
 #
 # add module docstring
 # add tests using pytest
+# log info using logging
 # check for protected management frames
 # deal with SIGTERM in child processes
 
