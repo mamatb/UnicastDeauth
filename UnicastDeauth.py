@@ -12,7 +12,7 @@
 # add module docstring
 # add tests using pytest
 # log info using logging
-# simplify OOP and relfection
+# simplify OOP and reflection
 # check for protected management frames
 # deal with SIGTERM in child processes
 
